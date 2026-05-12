@@ -1,7 +1,9 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
+  --text: #000;
+  --text-h: #000;
+  --text: #000;
+  --text-h: #000;
+  --bg: #f5fffa;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
   --accent: #aa3bff;
@@ -52,14 +54,14 @@
 
 body {
   margin: 0;
+  background-color: #f5fffa;
 }
 
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;

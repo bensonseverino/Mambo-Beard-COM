@@ -15,8 +15,8 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product, size) => {
-    setCart((prev) => [...prev, { ...product, size }]);
+  const addToCart = (product, size, color) => {
+    setCart((prev) => [...prev, { ...product, size, color }]);
   };
 
   const removeFromCart = (index) => {

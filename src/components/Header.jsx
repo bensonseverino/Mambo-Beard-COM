@@ -1,20 +1,71 @@
 // components/Header.jsx
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, ChevronLeft, Plus } from "lucide-react";
 import { useCart } from "../context/CartContext";
+import { useLocation, useNavigate } from "react-router-dom";
+import DistortedMambo from "../assets/distorted mambo.svg";
 
-export default function Header({ toggleCart }) {
+export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
   const { cart } = useCart();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isProductPage = location.pathname.startsWith("/product/");
+  const isTermsPage = location.pathname === "/terms";
+  const isPrivacyPage = location.pathname === "/privacy";
+  const isAtMax = zoomLevel >= maxZoom;
+
+  const handleLeftButton = () => {
+    if (isProductPage || isTermsPage || isPrivacyPage) {
+      navigate("/");
+    } else {
+      toggleZoom();
+    }
+  };
+
+  // On product/terms/privacy page: always show back arrow. On home: zoom icon logic.
+  const showBackArrow =
+    isProductPage || isTermsPage || isPrivacyPage || isAtMax;
 
   return (
-    <header className="w-full flex justify-between items-center px-4 py-1 border-b">
-      <h1 className="text-2xl font-bold tracking-wide">MAMBO BEARD</h1>
+    <header className="sticky top-0 z-10 w-full grid grid-cols-3 items-center px-4 py-1  bg-[#F5FFFA] text-black ">
+      {/* Left: Back / Zoom toggle */}
+      <div className="flex items-center">
+        <button
+          onClick={handleLeftButton}
+          className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-black/10 transition-all active:scale-90"
+          style={{ transition: "transform 0.2s ease" }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+              transform: showBackArrow ? "rotate(0deg)" : "rotate(90deg)",
+              color: "#43392f",
+            }}
+          >
+            {showBackArrow ? <ChevronLeft size={22} /> : <Plus size={22} />}
+          </span>
+        </button>
+      </div>
 
-      <button onClick={toggleCart} className="relative">
-        <ShoppingBag />
-        <span className="absolute -top-2 -right-2 text-xs bg-black text-white rounded-full px-1">
-          {cart.length}
-        </span>
-      </button>
+      {/* Center: Logo */}
+      <div className="flex justify-center">
+        <img
+          src={DistortedMambo}
+          alt="MAMBO BEARD"
+          style={{ height: "4rem" }}
+        />
+      </div>
+
+      {/* Right: Cart */}
+      <div className="flex justify-end">
+        <button onClick={toggleCart} className="relative">
+          <ShoppingBag style={{ color: "#43392f" }} />
+          <span className="absolute -top-2 -right-2 text-xs text-white rounded-full px-1" style={{ backgroundColor: "#43392f" }}>
+            {cart.length}
+          </span>
+        </button>
+      </div>
     </header>
   );
 }

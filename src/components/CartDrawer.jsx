@@ -33,7 +33,7 @@ export default function CartDrawer({ open, toggle }) {
     const orderList = cart
       .map(
         (item, i) =>
-          `${i + 1}. ${item.name} (${item.size}) - KES ${item.price}`,
+          `${i + 1}. ${item.name} (${item.size}${item.color ? `, ${item.color}` : ""}) - KES ${item.price}`,
       )
       .join("%0A");
 
@@ -66,11 +66,28 @@ Total: KES ${total}`;
       <h2 className="font-bold mt-2">Cart</h2>
 
       {cart.map((item, i) => (
-        <div key={i} className="flex justify-between text-sm">
-          <span>
-            {item.name} ({item.size})
-          </span>
-          <button onClick={() => removeFromCart(i)}>x</button>
+        <div
+          key={i}
+          className="flex gap-3 items-start text-sm mb-3 pb-3 border-b"
+        >
+          <img
+            src={Array.isArray(item.image) ? item.image[0] : item.image}
+            alt={item.name}
+            className="w-16 h-16 object-cover rounded"
+          />
+          <div className="flex-1">
+            <p className="font-medium">
+              {item.name} ({item.size}
+              {item.color ? `, ${item.color}` : ""})
+            </p>
+            <p className="text-gray-600">KES {item.price}</p>
+          </div>
+          <button
+            onClick={() => removeFromCart(i)}
+            className="text-red-500 hover:text-red-700 font-bold"
+          >
+            ×
+          </button>
         </div>
       ))}
 
