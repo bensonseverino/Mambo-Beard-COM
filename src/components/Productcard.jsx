@@ -12,12 +12,12 @@ export default function ProductCard({ product }) {
         />
       </Link>
 
-      <h2
+      <h4
         className="mt-2 text-sm font-medium"
         style={{ color: "#43392f" }}
       >
         {product.name}
-      </h2>
+      </h4>
     </div>
   );
 }

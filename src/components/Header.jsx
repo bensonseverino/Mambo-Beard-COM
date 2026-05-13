@@ -53,7 +53,7 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
         <img
           src={DistortedMambo}
           alt="MAMBO BEARD"
-          style={{ height: "4rem" }}
+          style={{ height: "4rem", filter: "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)" }}
         />
       </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import footerSvg from "../assets/footer-01.svg";
 
@@ -15,8 +15,8 @@ function MoveUpRightIcon({ className = "" }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="12"
-      height="12"
+      width="10"
+      height="10"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -34,16 +34,7 @@ function MoveUpRightIcon({ className = "" }) {
 export default function MamboBeardFooter() {
   const [clicked, setClicked] = useState(null);
 
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap";
 
-    document.head.appendChild(link);
-
-    return () => document.head.removeChild(link);
-  }, []);
 
   const handleClick = (label) => {
     setClicked(label);
@@ -56,10 +47,22 @@ export default function MamboBeardFooter() {
   return (
     <footer
       className="w-full bg-[#f5fffa] overflow-hidden select-none mt-auto"
-      style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+      // style={{ fontFamily: "'Bebas Neue', sans-serif" }}
     >
+      {/* Footer SVG */}
+      <div className="w-full flex justify-center px-0 py-0 pb-1">
+        <img
+          src={footerSvg}
+          alt="Mambo Beard"
+          className="w-full h-auto object-cover"
+          style={{
+            filter:
+              "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)",
+          }}
+        />
+      </div>
       {/* Social links row */}
-      <div className="flex justify-between items-end px-3 pt-5 pb-1 gap-1 flex-wrap">
+      <div className="flex justify-between items-end px-3 pt-1  gap-1 flex-wrap">
         {socialLinks.map((link) => {
           const LinkComponent = link.isExternal ? "a" : Link;
           const linkProps = link.isExternal
@@ -87,7 +90,6 @@ export default function MamboBeardFooter() {
                 ${clicked === link.label ? "opacity-70" : "opacity-100"}
               `}
               style={{
-                fontFamily: "'Bebas Neue', sans-serif",
                 color: "#43392f",
               }}
             >
@@ -109,17 +111,14 @@ export default function MamboBeardFooter() {
       </div>
 
       {/* Footer SVG */}
-      <div className="w-full flex justify-center px-0 py-0">
+      {/* <div className="w-full flex justify-center px-0 py-0">
         <img
           src={footerSvg}
           alt="Mambo Beard"
           className="w-full h-auto object-cover"
-          style={{
-            filter:
-              "invert(1) sepia(1) hue-rotate(30deg) saturate(0.5) brightness(0.7) backgroundColor: #43392f",
-          }}
+          style={{ filter: "invert(1) sepia(1) hue-rotate(30deg) saturate(0.5) brightness(0.7) backgroundColor: #43392f"   }}
         />
-      </div>
+      </div> */}
     </footer>
   );
 }
