@@ -1,0 +1,21 @@
+{
+  "name": "mambo-beard",
+  "compatibility_date": "2026-08-03",
+
+  "pages_build_output_dir": "dist",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mambo-beard-db",
+      "database_id": "YOUR_DATABASE_ID",
+    },
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "PRODUCTS",
+      "bucket_name": "mambo-beard-products",
+    },
+  ],
+}
