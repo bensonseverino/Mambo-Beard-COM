@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { products } from "../data/products";
+import useProduct from "../hooks/useProduct";
+import useProducts from "../hooks/useProducts";
 import { useCart } from "../context/CartContext";
+import { buildImageUrl } from "../services/api";
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE CAROUSEL CONTROLS
@@ -57,12 +59,16 @@ function ProductGallery({ images }) {
   const [current, setCurrent] = useState(0);
   const [fading, setFading] = useState(false);
 
+  // Reset index when images change (e.g. color switch)
+  useEffect(() => {
+    setCurrent(0);
+    setFading(false);
+  }, [images]);
+
   const goTo = useCallback(
     (index) => {
-      if (fading) return;
-
+      if (fading || !images.length) return;
       setFading(true);
-
       setTimeout(() => {
         setCurrent((index + images.length) % images.length);
         setFading(false);
@@ -80,13 +86,15 @@ function ProductGallery({ images }) {
       if (e.key === "ArrowLeft") handlePrev();
       if (e.key === "ArrowRight") handleNext();
     };
-
     window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [current, images.length]);
 
-    return () => {
-      window.removeEventListener("keydown", handler);
-    };
-  }, [current]);
+  if (!images.length) {
+    return (
+      <div className="w-[70vw] max-w-97.5 aspect-3/4 bg-black/5 animate-pulse" />
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-7 w-full">
@@ -97,7 +105,7 @@ function ProductGallery({ images }) {
         {/* PRODUCT IMAGE */}
         <div className="relative w-[70vw] max-w-97.5 aspect-3/4 overflow-hidden">
           <img
-            key={current}
+            key={images[current]}
             src={images[current]}
             alt={`Product image ${current + 1}`}
             draggable={false}
@@ -139,16 +147,19 @@ function ProductGallery({ images }) {
 // ─────────────────────────────────────────────────────────────
 // SIZE SELECTOR
 // ─────────────────────────────────────────────────────────────
-function SizeSelector({ sizes, selected, onSelect }) {
+function SizeSelector({ sizes, selected, onSelect, getStock, selectedColorId }) {
   return (
     <div className="flex items-center justify-center gap-px">
       {sizes.map((size) => {
         const isSelected = selected === size;
+        const stock = selectedColorId ? getStock(selectedColorId, size) : 1;
+        const isDisabled = stock <= 0;
 
         return (
           <button
             key={size}
-            onClick={() => onSelect(size)}
+            onClick={() => !isDisabled && onSelect(size)}
+            disabled={isDisabled}
             aria-pressed={isSelected}
             className={`
               w-10 h-10
@@ -157,9 +168,11 @@ function SizeSelector({ sizes, selected, onSelect }) {
               transition-all duration-200
               focus:outline-none
               ${
-                isSelected
-                  ? "border-black bg-black text-white"
-                  : "border-transparent text-black/50 hover:border-black/20 hover:text-black"
+                isDisabled
+                  ? "border-transparent text-black/15 cursor-not-allowed line-through"
+                  : isSelected
+                    ? "border-black bg-black text-white"
+                    : "border-transparent text-black/50 hover:border-black/20 hover:text-black"
               }
             `}
           >
@@ -174,64 +187,79 @@ function SizeSelector({ sizes, selected, onSelect }) {
 // ─────────────────────────────────────────────────────────────
 // PRODUCT INFO
 // ─────────────────────────────────────────────────────────────
-function ProductInfo({ product }) {
+function ProductInfo({ product, galleryImages }) {
   const { addToCart } = useCart();
   const [open, setOpen] = useState(false);
-
   const [selectedSize, setSelectedSize] = useState(null);
-
-  // NO COLOR SELECTED BY DEFAULT
-  const [selectedColor, setSelectedColor] = useState(null);
-
-  // BUTTON STATES
+  const [selectedColorIdx, setSelectedColorIdx] = useState(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
-
-  // VALIDATION ERROR
   const [showError, setShowError] = useState(false);
 
-  // COLOR OPTIONS
-  const colorOptions = [
-    { name: "Black", value: "#000000" },
-    { name: "Red", value: "#C1121F" },
-    { name: "Navy Blue", value: "#0A2342" },
-    { name: "Beige", value: "#D6C6B8" },
-    { name: "Maroon", value: "#800000" },
-  ];
+  const colors = product.colors || [];
+  const sizes = product.sizes || [];
+  const variants = product.variants || [];
 
-  // FORM VALIDATION
+  const selectedColor = selectedColorIdx !== null ? colors[selectedColorIdx] : null;
+
+  // Stock checker
+  const getStock = useCallback(
+    (colorId, size) => {
+      const v = variants.find((v) => v.colorId === colorId && v.size === size);
+      return v ? v.stock : 0;
+    },
+    [variants],
+  );
+
+  // Check total stock for current product
+  const totalStock = useMemo(
+    () => variants.reduce((sum, v) => sum + v.stock, 0),
+    [variants],
+  );
+
+  const isOutOfStock = totalStock <= 0;
+
+  // Reset size when color changes (size may be unavailable for new color)
+  useEffect(() => {
+    setSelectedSize(null);
+  }, [selectedColorIdx]);
+
   const isReady = selectedSize !== null && selectedColor !== null;
+  const currentStock = isReady ? getStock(selectedColor.id, selectedSize) : 0;
 
-  // ADD TO CART
   const handleAddToCart = () => {
-    // BLOCK IF OPTIONS NOT SELECTED
     if (!isReady) {
       setShowError(true);
-
-      setTimeout(() => {
-        setShowError(false);
-      }, 2200);
-
+      setTimeout(() => setShowError(false), 2200);
       return;
     }
-
-    // PREVENT DOUBLE CLICK
+    if (currentStock <= 0) {
+      setShowError(true);
+      setTimeout(() => setShowError(false), 2200);
+      return;
+    }
     if (adding) return;
 
-    // START ANIMATION
     setAdding(true);
 
-    // Add to cart with product, size, and color
-    const colorName = colorOptions[selectedColor]?.name || "";
-    addToCart(product, product.sizes[selectedSize], colorName);
+    const firstImage = galleryImages.length > 0 ? galleryImages[0] : "";
+
+    addToCart({
+      id: `${product.id}-${selectedColor.id}-${selectedSize}`,
+      productId: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      selectedColor: selectedColor.name,
+      selectedColorId: selectedColor.id,
+      selectedSize,
+      image: firstImage,
+    });
 
     setTimeout(() => {
       setAdding(false);
       setAdded(true);
-
-      setTimeout(() => {
-        setAdded(false);
-      }, 1800);
+      setTimeout(() => setAdded(false), 1800);
     }, 700);
   };
 
@@ -244,34 +272,43 @@ function ProductInfo({ product }) {
 
       {/* PRODUCT PRICE */}
       <p className="text-[13px] tracking-[0.18em] text-black font-light">
-        {product.price}
+        KES {product.price}
       </p>
 
+      {/* OUT OF STOCK BADGE */}
+      {isOutOfStock && (
+        <p className="text-[9px] tracking-[0.2em] uppercase text-red-500 font-light mt-1">
+          Out of Stock
+        </p>
+      )}
+
       {/* EXPAND BUTTON */}
-      <button
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        aria-label={open ? "Close options" : "Open options"}
-        className="
-          mt-2
-          w-8 h-8
-          border border-black/20
-          flex items-center justify-center
-          transition-all duration-300
-          hover:border-black/60
-          focus:outline-none
-        "
-      >
-        <span
-          className="text-base font-thin leading-none"
-          style={{
-            transform: open ? "rotate(45deg)" : "rotate(0deg)",
-            transition: "transform 0.3s ease",
-          }}
+      {!isOutOfStock && (
+        <button
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          aria-label={open ? "Close options" : "Open options"}
+          className="
+            mt-2
+            w-8 h-8
+            border border-black/20
+            flex items-center justify-center
+            transition-all duration-300
+            hover:border-black/60
+            focus:outline-none
+          "
         >
-          +
-        </span>
-      </button>
+          <span
+            className="text-base font-thin leading-none"
+            style={{
+              transform: open ? "rotate(45deg)" : "rotate(0deg)",
+              transition: "transform 0.3s ease",
+            }}
+          >
+            +
+          </span>
+        </button>
+      )}
 
       {/* EXPANDABLE PANEL */}
       <div
@@ -281,8 +318,8 @@ function ProductInfo({ product }) {
           w-full flex justify-center
         "
         style={{
-          maxHeight: open ? "400px" : "0px",
-          opacity: open ? 1 : 0,
+          maxHeight: open && !isOutOfStock ? "400px" : "0px",
+          opacity: open && !isOutOfStock ? 1 : 0,
         }}
       >
         <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
@@ -293,9 +330,11 @@ function ProductInfo({ product }) {
             </p>
 
             <SizeSelector
-              sizes={product.sizes}
+              sizes={sizes}
               selected={selectedSize}
               onSelect={setSelectedSize}
+              getStock={getStock}
+              selectedColorId={selectedColor?.id}
             />
           </div>
 
@@ -307,10 +346,10 @@ function ProductInfo({ product }) {
 
             {/* COLOR BUTTONS */}
             <div className="flex gap-3 justify-center flex-wrap">
-              {colorOptions.map((color, idx) => (
+              {colors.map((color, idx) => (
                 <button
-                  key={color.name}
-                  onClick={() => setSelectedColor(idx)}
+                  key={color.id}
+                  onClick={() => setSelectedColorIdx(idx)}
                   aria-label={`Select ${color.name}`}
                   className={`
                     relative
@@ -320,17 +359,17 @@ function ProductInfo({ product }) {
                     transition-all duration-300
                     focus:outline-none
                     ${
-                      selectedColor === idx
+                      selectedColorIdx === idx
                         ? "border-black scale-110"
                         : "border-black/15 hover:border-black/40"
                     }
                   `}
                   style={{
-                    backgroundColor: color.value,
+                    backgroundColor: color.hex,
                   }}
                 >
                   {/* ACTIVE DOT */}
-                  {selectedColor === idx && (
+                  {selectedColorIdx === idx && (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="w-2 h-2 rounded-full bg-white/80" />
                     </span>
@@ -341,9 +380,7 @@ function ProductInfo({ product }) {
 
             {/* SELECTED COLOR LABEL */}
             <p className="text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1">
-              {selectedColor !== null
-                ? colorOptions[selectedColor]?.name
-                : "No color selected"}
+              {selectedColor ? selectedColor.name : "No color selected"}
             </p>
           </div>
 
@@ -366,13 +403,15 @@ function ProductInfo({ product }) {
               }
             `}
           >
-            Please select size and color
+            {isReady && currentStock <= 0
+              ? "This variant is out of stock"
+              : "Please select size and color"}
           </div>
 
           {/* ADD TO CART BUTTON */}
           <button
             onClick={handleAddToCart}
-            disabled={adding}
+            disabled={adding || isOutOfStock}
             className={`
               relative overflow-hidden
               w-full h-11
@@ -387,7 +426,7 @@ function ProductInfo({ product }) {
               focus:outline-none
 
               ${
-                isReady
+                isReady && currentStock > 0
                   ? "border-black/20 hover:border-black/60 text-black"
                   : "border-black/10 text-black/30"
               }
@@ -431,18 +470,25 @@ function ProductInfo({ product }) {
 }
 
 function TimelineItem({ product }) {
+  const imageSrc = product.thumbnail
+    ? buildImageUrl(product.thumbnail)
+    : "";
+
   return (
     <Link
-      to={`/product/${product.id}`}
+      to={`/product/${product.slug || product.id}`}
       className="group flex items-center gap-4 rounded-[28px] border border-black/10 bg-white/90 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-slate-100">
-        <img
-          src={product.image[0]}
-          alt={product.name}
-          className="h-full w-full object-cover"
-          draggable={false}
-        />
+        {imageSrc && (
+          <img
+            src={imageSrc}
+            alt={product.name}
+            className="h-full w-full object-cover"
+            draggable={false}
+            loading="lazy"
+          />
+        )}
       </div>
 
       <div className="flex-1">
@@ -450,7 +496,7 @@ function TimelineItem({ product }) {
           {product.name}
         </p>
         <p className="mt-1 text-sm font-semibold text-[#43392f]">
-          ${product.price}
+          KES {product.price}
         </p>
       </div>
 
@@ -467,9 +513,11 @@ function ProductTimeline({
   maxZoom,
   showTimelineFromHome,
 }) {
+  const { products } = useProducts();
+
   const otherProducts = useMemo(
     () => products.filter((product) => product.id !== currentProduct.id),
-    [currentProduct.id],
+    [products, currentProduct.id],
   );
 
   const isTimelineMode =
@@ -498,17 +546,62 @@ function ProductTimeline({
 }
 
 // ─────────────────────────────────────────────────────────────
+// SKELETON LOADER
+// ─────────────────────────────────────────────────────────────
+function ProductPageSkeleton() {
+  return (
+    <div
+      className="min-h-screen w-full flex flex-col items-center justify-start py-10 md:py-16 px-4 pb-16 select-none animate-pulse"
+      style={{ background: "#f5fffa" }}
+    >
+      <div className="w-[70vw] max-w-97.5 aspect-3/4 bg-black/5 rounded" />
+      <div className="mt-10 h-3 w-32 bg-black/5 rounded" />
+      <div className="mt-3 h-3 w-20 bg-black/5 rounded" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN PRODUCT PAGE
 // ─────────────────────────────────────────────────────────────
 export default function ProductPage({ zoomLevel, maxZoom }) {
-  const { id } = useParams();
+  const { slug } = useParams();
   const location = useLocation();
   const showTimelineFromHome = location.state?.fromHome === true;
 
-  const product = products.find((p) => String(p.id) === String(id));
+  const { product, loading, error } = useProduct(slug);
 
-  // PRODUCT NOT FOUND
-  if (!product) {
+  // Derive the selected color index (starts at null — no selection)
+  const [selectedColorIdx, setSelectedColorIdx] = useState(null);
+
+  // Reset color selection when product changes
+  useEffect(() => {
+    setSelectedColorIdx(null);
+  }, [slug]);
+
+  // Build gallery images filtered by selected color
+  const galleryImages = useMemo(() => {
+    if (!product || !product.images) return [];
+    const colorId = selectedColorIdx !== null && product.colors?.[selectedColorIdx]
+      ? product.colors[selectedColorIdx].id
+      : null;
+
+    let filtered = colorId
+      ? product.images.filter((img) => img.colorId === colorId)
+      : product.images;
+
+    // Sort by sortOrder
+    filtered = [...filtered].sort((a, b) => a.sortOrder - b.sortOrder);
+    return filtered.map((img) => buildImageUrl(img.path));
+  }, [product, selectedColorIdx]);
+
+  // LOADING
+  if (loading) {
+    return <ProductPageSkeleton />;
+  }
+
+  // ERROR / NOT FOUND
+  if (error || !product) {
     return (
       <div
         className="
@@ -523,7 +616,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
       >
         <div className="text-center">
           <h2 className="text-xl font-bold mb-2">Product not found</h2>
-
           <p className="text-black/60">
             The product you are looking for does not exist.
           </p>
@@ -553,10 +645,10 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         "
       >
         {/* PRODUCT GALLERY */}
-        <ProductGallery images={product.image} />
+        <ProductGallery images={galleryImages} />
 
         {/* PRODUCT INFO */}
-        <ProductInfo product={product} />
+        <ProductInfo product={product} galleryImages={galleryImages} />
 
         {/* TIMELINE SCROLL */}
         <ProductTimeline

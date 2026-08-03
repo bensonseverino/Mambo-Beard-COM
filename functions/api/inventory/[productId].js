@@ -14,11 +14,11 @@ export async function onRequestGet(context) {
 
   try {
     const inventory = await env.DB.prepare(
-      `SELECT i.id, i.product_id, i.color_id, i.size_id, i.stock
-       FROM inventory i
-       LEFT JOIN products p ON p.id = i.product_id
-       WHERE i.product_id = ? OR p.slug = ?
-       ORDER BY i.color_id, i.size_id;`,
+      `SELECT pv.id, pv.product_id, pv.color_id, pv.size, pv.stock
+       FROM product_variants pv
+       LEFT JOIN products p ON p.id = pv.product_id
+       WHERE (pv.product_id = ? OR p.slug = ?)
+       ORDER BY pv.color_id, pv.size ASC;`,
     )
       .bind(productId, productId)
       .all();

@@ -49,10 +49,11 @@ export async function onRequestPost(context) {
       );
     }
 
-    const productIds = [...new Set(cart.map((item) => item.id))];
+    // Verify product prices from DB
+    const productIds = [...new Set(cart.map((item) => item.productId))];
 
     const productsResult = await env.DB.prepare(
-      `SELECT id, price FROM products WHERE id IN (${productIds.map(() => "?").join(",")});`,
+      `SELECT id, price FROM products WHERE id IN (${productIds.map(() => "?").join(",")}) AND active = 1;`,
     )
       .bind(...productIds)
       .all();
@@ -62,53 +63,54 @@ export async function onRequestPost(context) {
     );
 
     let subtotal = 0;
-    const inventoryChecks = [];
+    const variantChecks = [];
 
-    cart.forEach((item) => {
-      const product = productsById.get(item.id);
+    for (const item of cart) {
+      const product = productsById.get(item.productId);
       if (!product) {
-        throw new Error(`Product not found: ${item.id}`);
+        throw new Error(`Product not found: ${item.productId}`);
       }
 
-      subtotal += Number(product.price) * Number(item.quantity || 1);
-      inventoryChecks.push({
-        productId: item.id,
-        colorId: item.selectedColorId,
-        sizeId: item.selectedSizeId,
-        quantity: Number(item.quantity || 1),
+      const qty = Number(item.quantity || 1);
+      subtotal += Number(product.price) * qty;
+
+      // Look up the variant by product_id + color_id + size
+      const variant = await env.DB.prepare(
+        `SELECT id, stock FROM product_variants
+         WHERE product_id = ? AND color_id = ? AND size = ?
+         LIMIT 1;`,
+      )
+        .bind(item.productId, item.colorId, item.size)
+        .first();
+
+      if (!variant) {
+        throw new Error("Selected product variant is not available.");
+      }
+
+      if (variant.stock < qty) {
+        throw new Error("Selected variant is out of stock.");
+      }
+
+      variantChecks.push({
+        variantId: variant.id,
+        remainingStock: variant.stock - qty,
+        productId: item.productId,
+        colorId: item.colorId,
+        size: item.size,
+        quantity: qty,
+        price: Number(product.price),
       });
-    });
-
-    const inventoryRows = await Promise.all(
-      inventoryChecks.map(async (check) => {
-        const row = await env.DB.prepare(
-          `SELECT id, stock FROM inventory WHERE product_id = ? AND color_id = ? AND size_id = ? LIMIT 1;`,
-        )
-          .bind(check.productId, check.colorId, check.sizeId)
-          .first();
-
-        if (!row) {
-          throw new Error("Selected product variant is not available.");
-        }
-
-        if (row.stock < check.quantity) {
-          throw new Error("Selected variant is out of stock.");
-        }
-
-        return {
-          inventoryId: row.id,
-          remainingStock: row.stock - check.quantity,
-        };
-      }),
-    );
+    }
 
     const deliveryFee = DELIVERY_FEES[zone] ?? DELIVERY_FEES.Other;
     const total = subtotal + deliveryFee;
     const orderNumber = generateOrderNumber();
     const orderId = crypto.randomUUID();
 
+    // Insert order
     await env.DB.prepare(
-      `INSERT INTO orders (id, order_number, customer_name, phone, email, location, delivery_fee, subtotal, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO orders (id, order_number, customer_name, phone, email, location, delivery_fee, subtotal, total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     )
       .bind(
         orderId,
@@ -123,31 +125,31 @@ export async function onRequestPost(context) {
       )
       .run();
 
+    // Insert order items and decrement stock
     await Promise.all(
-      cart.map((item) => {
+      variantChecks.map(async (check) => {
         const orderItemId = crypto.randomUUID();
-        return env.DB.prepare(
-          `INSERT INTO order_items (id, order_id, product_id, color_id, size_id, quantity, price) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+        await env.DB.prepare(
+          `INSERT INTO order_items (id, order_id, product_id, color_id, size, quantity, price)
+           VALUES (?, ?, ?, ?, ?, ?, ?);`,
         )
           .bind(
             orderItemId,
             orderId,
-            item.id,
-            item.selectedColorId,
-            item.selectedSizeId,
-            item.quantity,
-            item.price,
+            check.productId,
+            check.colorId,
+            check.size,
+            check.quantity,
+            check.price,
           )
           .run();
-      }),
-    );
 
-    await Promise.all(
-      inventoryChecks.map((check) =>
-        env.DB.prepare(`UPDATE inventory SET stock = ? WHERE id = ?;`)
-          .bind(check.remainingStock, check.inventoryId)
-          .run(),
-      ),
+        await env.DB.prepare(
+          `UPDATE product_variants SET stock = ? WHERE id = ?;`,
+        )
+          .bind(check.remainingStock, check.variantId)
+          .run();
+      }),
     );
 
     return new Response(JSON.stringify({ orderNumber }), {

@@ -17,6 +17,12 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
+  /**
+   * Add an item to the cart.
+   * Item shape: { id, productId, name, price, quantity, selectedColor, selectedColorId, selectedSize, image }
+   * - id is a composite key: `${productId}-${colorId}-${size}`
+   * - image should be a full R2 URL (already resolved via buildImageUrl)
+   */
   const addToCart = (item) => {
     setCart((prev) => {
       const existing = prev.find((entry) => entry.id === item.id);
@@ -35,11 +41,25 @@ export const CartProvider = ({ children }) => {
     setCart((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const updateQuantity = (itemId, quantity) => {
+    if (quantity <= 0) {
+      setCart((prev) => prev.filter((entry) => entry.id !== itemId));
+      return;
+    }
+    setCart((prev) =>
+      prev.map((entry) =>
+        entry.id === itemId ? { ...entry, quantity } : entry,
+      ),
+    );
+  };
+
   const clearCart = () => setCart([]);
+
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, clearCart }}
+      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartCount }}
     >
       {children}
     </CartContext.Provider>

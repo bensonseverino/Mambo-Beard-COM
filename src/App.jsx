@@ -52,7 +52,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
           <Route
-            path="/product/:id"
+            path="/product/:slug"
             element={<YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />}
           />
           <Route path="/terms" element={<Terms />} />

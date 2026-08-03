@@ -41,9 +41,9 @@ export default function CartDrawer({ open, toggle }) {
       zone,
       customLocation: finalLocation,
       cart: cart.map((item) => ({
-        id: item.productId,
-        selectedColorId: item.selectedColorId,
-        selectedSizeId: item.selectedSizeId,
+        productId: item.productId,
+        colorId: item.selectedColorId,
+        size: item.selectedSize,
         quantity: item.quantity,
         price: item.price,
       })),
@@ -90,14 +90,14 @@ export default function CartDrawer({ open, toggle }) {
           className="flex gap-3 items-start text-sm mb-3 pb-3 border-b"
         >
           <img
-            src={Array.isArray(item.image) ? item.image[0] : item.image}
+            src={item.image || ""}
             alt={item.name}
             className="w-16 h-16 object-cover rounded"
           />
           <div className="flex-1">
             <p className="font-medium">
-              {item.name} ({item.size}
-              {item.color ? `, ${item.color}` : ""})
+              {item.name} ({item.selectedSize}
+              {item.selectedColor ? `, ${item.selectedColor}` : ""})
             </p>
             <p className="text-gray-600">KES {item.price}</p>
           </div>
@@ -122,6 +122,12 @@ export default function CartDrawer({ open, toggle }) {
           placeholder="Phone"
           className="w-full border p-2"
           onChange={(e) => setPhone(e.target.value)}
+        />
+
+        <input
+          placeholder="Email"
+          className="w-full border p-2"
+          onChange={(e) => setEmail(e.target.value)}
         />
 
         {/* DROPDOWN */}
