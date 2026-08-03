@@ -1,4 +1,5 @@
-export const onRequest = async ({ env, params }) => {
+export async function onRequestGet(context) {
+  const { env, params } = context;
   const slug = params.slug;
 
   if (!slug) {
@@ -12,7 +13,7 @@ export const onRequest = async ({ env, params }) => {
   }
 
   try {
-    const productResult = await env.D1.prepare(
+    const productResult = await env.DB.prepare(
       `SELECT id, slug, name, description, price, category, featured FROM products WHERE slug = ? OR id = ? LIMIT 1;`,
     )
       .bind(slug, slug)
@@ -27,18 +28,18 @@ export const onRequest = async ({ env, params }) => {
 
     const [colorsResult, imagesResult, sizesResult, inventoryResult] =
       await Promise.all([
-        env.D1.prepare(
+        env.DB.prepare(
           `SELECT id, name, hex FROM product_colors WHERE product_id = ? ORDER BY name ASC;`,
         )
           .bind(productResult.id)
           .all(),
-        env.D1.prepare(
+        env.DB.prepare(
           `SELECT id, color_id, image_url, sort_order FROM product_images WHERE product_id = ? ORDER BY color_id, sort_order ASC;`,
         )
           .bind(productResult.id)
           .all(),
-        env.D1.prepare(`SELECT id, name FROM sizes ORDER BY name ASC;`).all(),
-        env.D1.prepare(
+        env.DB.prepare(`SELECT id, name FROM sizes ORDER BY name ASC;`).all(),
+        env.DB.prepare(
           `SELECT id, color_id, size_id, stock FROM inventory WHERE product_id = ? ORDER BY color_id, size_id;`,
         )
           .bind(productResult.id)
@@ -69,4 +70,4 @@ export const onRequest = async ({ env, params }) => {
       },
     );
   }
-};
+}

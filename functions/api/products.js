@@ -1,4 +1,6 @@
-export const onRequest = async ({ env }) => {
+export async function onRequestGet(context) {
+  const { env } = context;
+
   try {
     const query = `
       SELECT
@@ -19,7 +21,7 @@ export const onRequest = async ({ env }) => {
       ORDER BY p.created_at DESC, c.name ASC;
     `;
 
-    const result = await env.D1.prepare(query).all();
+    const result = await env.DB.prepare(query).all();
     const productsById = new Map();
 
     result.results.forEach((row) => {
@@ -73,4 +75,4 @@ export const onRequest = async ({ env }) => {
       },
     );
   }
-};
+}

@@ -14,7 +14,9 @@ const generateOrderNumber = () => {
   return `MB-${format}-${suffix}`;
 };
 
-export const onRequest = async ({ request, env }) => {
+export async function onRequestPost(context) {
+  const { request, env } = context;
+
   try {
     const body = await request.json();
     const { name, phone, email, zone, customLocation, cart } = body || {};
@@ -49,7 +51,7 @@ export const onRequest = async ({ request, env }) => {
 
     const productIds = [...new Set(cart.map((item) => item.id))];
 
-    const productsResult = await env.D1.prepare(
+    const productsResult = await env.DB.prepare(
       `SELECT id, price FROM products WHERE id IN (${productIds.map(() => "?").join(",")});`,
     )
       .bind(...productIds)
@@ -79,7 +81,7 @@ export const onRequest = async ({ request, env }) => {
 
     const inventoryRows = await Promise.all(
       inventoryChecks.map(async (check) => {
-        const row = await env.D1.prepare(
+        const row = await env.DB.prepare(
           `SELECT id, stock FROM inventory WHERE product_id = ? AND color_id = ? AND size_id = ? LIMIT 1;`,
         )
           .bind(check.productId, check.colorId, check.sizeId)
@@ -105,7 +107,7 @@ export const onRequest = async ({ request, env }) => {
     const orderNumber = generateOrderNumber();
     const orderId = crypto.randomUUID();
 
-    await env.D1.prepare(
+    await env.DB.prepare(
       `INSERT INTO orders (id, order_number, customer_name, phone, email, location, delivery_fee, subtotal, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     )
       .bind(
@@ -124,7 +126,7 @@ export const onRequest = async ({ request, env }) => {
     await Promise.all(
       cart.map((item) => {
         const orderItemId = crypto.randomUUID();
-        return env.D1.prepare(
+        return env.DB.prepare(
           `INSERT INTO order_items (id, order_id, product_id, color_id, size_id, quantity, price) VALUES (?, ?, ?, ?, ?, ?, ?);`,
         )
           .bind(
@@ -142,7 +144,7 @@ export const onRequest = async ({ request, env }) => {
 
     await Promise.all(
       inventoryChecks.map((check) =>
-        env.D1.prepare(`UPDATE inventory SET stock = ? WHERE id = ?;`)
+        env.DB.prepare(`UPDATE inventory SET stock = ? WHERE id = ?;`)
           .bind(check.remainingStock, check.inventoryId)
           .run(),
       ),
@@ -161,4 +163,4 @@ export const onRequest = async ({ request, env }) => {
       },
     );
   }
-};
+}

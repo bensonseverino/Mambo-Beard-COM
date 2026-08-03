@@ -1,4 +1,5 @@
-export const onRequest = async ({ env, params }) => {
+export async function onRequestGet(context) {
+  const { env, params } = context;
   const productId = params.productId;
 
   if (!productId) {
@@ -12,7 +13,7 @@ export const onRequest = async ({ env, params }) => {
   }
 
   try {
-    const inventory = await env.D1.prepare(
+    const inventory = await env.DB.prepare(
       `SELECT i.id, i.product_id, i.color_id, i.size_id, i.stock
        FROM inventory i
        LEFT JOIN products p ON p.id = i.product_id
@@ -35,4 +36,4 @@ export const onRequest = async ({ env, params }) => {
       },
     );
   }
-};
+}
