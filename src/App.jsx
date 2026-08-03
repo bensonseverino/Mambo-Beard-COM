@@ -51,7 +51,10 @@ function App() {
 
         <Routes>
           <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
-          <Route path="/product/:id" element={<YeezyProduct />} />
+          <Route
+            path="/product/:id"
+            element={<YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />}
+          />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
         </Routes>

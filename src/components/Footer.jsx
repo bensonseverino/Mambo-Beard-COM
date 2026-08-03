@@ -116,7 +116,7 @@ export default function MamboBeardFooter() {
           className="w-full h-auto object-cover"
           style={{
             filter:
-              "invert(1) sepia(1) hue-rotate(30deg) saturate(0.5) brightness(0.7) backgroundColor: #43392f",
+              "brightness(0) saturate(100%) sepia(1) hue-rotate(20deg) saturate(2.2) brightness(0.45)",
           }}
         />
       </div>

@@ -12,19 +12,20 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
   const isProductPage = location.pathname.startsWith("/product/");
   const isTermsPage = location.pathname === "/terms";
   const isPrivacyPage = location.pathname === "/privacy";
+  const isHome = !isProductPage && !isTermsPage && !isPrivacyPage;
   const isAtMax = zoomLevel >= maxZoom;
 
   const handleLeftButton = () => {
-    if (isProductPage || isTermsPage || isPrivacyPage) {
-      navigate("/");
-    } else {
+    if (isHome) {
       toggleZoom();
+      return;
     }
+
+    navigate("/");
   };
 
-  // On product/terms/privacy page: always show back arrow. On home: zoom icon logic.
   const showBackArrow =
-    isProductPage || isTermsPage || isPrivacyPage || isAtMax;
+    isProductPage || isTermsPage || isPrivacyPage || (isHome && isAtMax);
 
   return (
     <header className="sticky top-0 z-10 w-full grid grid-cols-3 items-center px-4 py-1  bg-[#F5FFFA] text-black ">
@@ -53,7 +54,11 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
         <img
           src={DistortedMambo}
           alt="MAMBO BEARD"
-          style={{ height: "4rem", filter: "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)" }}
+          style={{
+            height: "4rem",
+            filter:
+              "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)",
+          }}
         />
       </div>
 
@@ -61,7 +66,10 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
       <div className="flex justify-end">
         <button onClick={toggleCart} className="relative">
           <ShoppingBag style={{ color: "#43392f" }} />
-          <span className="absolute -top-2 -right-2 text-xs text-white rounded-full px-1" style={{ backgroundColor: "#43392f" }}>
+          <span
+            className="absolute -top-2 -right-2 text-xs text-white rounded-full px-1"
+            style={{ backgroundColor: "#43392f" }}
+          >
             {cart.length}
           </span>
         </button>

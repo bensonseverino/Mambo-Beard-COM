@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { products } from "../data/products";
 import { useCart } from "../context/CartContext";
 
@@ -95,7 +95,7 @@ function ProductGallery({ images }) {
         <ImageCarouselControls direction="left" onClick={handlePrev} />
 
         {/* PRODUCT IMAGE */}
-        <div className="relative w-[70vw] max-w-[390px] aspect-[3/4] overflow-hidden">
+        <div className="relative w-[70vw] max-w-97.5 aspect-3/4 overflow-hidden">
           <img
             key={current}
             src={images[current]}
@@ -430,11 +430,80 @@ function ProductInfo({ product }) {
   );
 }
 
+function TimelineItem({ product }) {
+  return (
+    <Link
+      to={`/product/${product.id}`}
+      className="group flex items-center gap-4 rounded-[28px] border border-black/10 bg-white/90 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-slate-100">
+        <img
+          src={product.image[0]}
+          alt={product.name}
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
+      </div>
+
+      <div className="flex-1">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-[#43392f]/70">
+          {product.name}
+        </p>
+        <p className="mt-1 text-sm font-semibold text-[#43392f]">
+          ${product.price}
+        </p>
+      </div>
+
+      <span className="text-xl font-semibold text-[#43392f] transition group-hover:translate-x-1">
+        →
+      </span>
+    </Link>
+  );
+}
+
+function ProductTimeline({
+  currentProduct,
+  zoomLevel,
+  maxZoom,
+  showTimelineFromHome,
+}) {
+  const otherProducts = useMemo(
+    () => products.filter((product) => product.id !== currentProduct.id),
+    [currentProduct.id],
+  );
+
+  const isTimelineMode =
+    (zoomLevel === maxZoom && maxZoom > 1) || showTimelineFromHome;
+
+  if (!isTimelineMode || otherProducts.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="w-full max-w-xl flex flex-col gap-4 px-1">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-1 rounded-full bg-[#43392f]/30" />
+        <p className="text-[10px] uppercase tracking-[0.35em] text-[#43392f]/70 font-light">
+          Continue scrolling for more drops
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {otherProducts.map((product) => (
+          <TimelineItem key={product.id} product={product} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // MAIN PRODUCT PAGE
 // ─────────────────────────────────────────────────────────────
-export default function ProductPage() {
+export default function ProductPage({ zoomLevel, maxZoom }) {
   const { id } = useParams();
+  const location = useLocation();
+  const showTimelineFromHome = location.state?.fromHome === true;
 
   const product = products.find((p) => String(p.id) === String(id));
 
@@ -467,8 +536,8 @@ export default function ProductPage() {
     <div
       className="
         min-h-screen w-full
-        flex flex-col items-center justify-between
-        py-10 md:py-16 px-4
+        flex flex-col items-center justify-start
+        py-10 md:py-16 px-4 pb-16
         select-none
       "
       style={{
@@ -479,7 +548,7 @@ export default function ProductPage() {
       <main
         className="
           flex-1 w-full
-          flex flex-col items-center justify-center
+          flex flex-col items-center justify-start
           gap-10 md:gap-14
         "
       >
@@ -488,6 +557,14 @@ export default function ProductPage() {
 
         {/* PRODUCT INFO */}
         <ProductInfo product={product} />
+
+        {/* TIMELINE SCROLL */}
+        <ProductTimeline
+          currentProduct={product}
+          zoomLevel={zoomLevel}
+          maxZoom={maxZoom}
+          showTimelineFromHome={showTimelineFromHome}
+        />
       </main>
     </div>
   );

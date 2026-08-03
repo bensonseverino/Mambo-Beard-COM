@@ -2,23 +2,29 @@
 
 import { useState } from "react";
 import { useCart } from "../context/CartContext";
-import { generateOrderId } from "../utils/generateOrderId";
 import { DELIVERY_ZONES, getDeliveryFee } from "../utils/deliveryFee";
+import { createCheckout } from "../services/api";
+import { buildWhatsAppUrl } from "../utils/whatsappMessage";
 
 export default function CartDrawer({ open, toggle }) {
   const { cart, removeFromCart, clearCart } = useCart();
 
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [zone, setZone] = useState("");
   const [customLocation, setCustomLocation] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const delivery = getDeliveryFee(zone);
-  const subtotal = cart.reduce((acc, item) => acc + item.price, 0);
+  const subtotal = cart.reduce(
+    (acc, item) => acc + item.price * item.quantity,
+    0,
+  );
   const total = subtotal + delivery;
 
-  const handleCheckout = () => {
-    if (!name || !phone || !zone) {
+  const handleCheckout = async () => {
+    if (!name || !email || !phone || !zone) {
       return alert("Fill all required details");
     }
 
@@ -26,33 +32,46 @@ export default function CartDrawer({ open, toggle }) {
       return alert("Enter your location");
     }
 
-    const orderId = generateOrderId();
-
     const finalLocation = zone === "Other" ? customLocation : zone;
 
-    const orderList = cart
-      .map(
-        (item, i) =>
-          `${i + 1}. ${item.name} (${item.size}${item.color ? `, ${item.color}` : ""}) - KES ${item.price}`,
-      )
-      .join("%0A");
+    const payload = {
+      name,
+      phone,
+      email,
+      zone,
+      customLocation: finalLocation,
+      cart: cart.map((item) => ({
+        id: item.productId,
+        selectedColorId: item.selectedColorId,
+        selectedSizeId: item.selectedSizeId,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+    };
 
-    const message = `*NEW ORDER*%0A
-Order ID: ${orderId}%0A
-Name: ${name}%0A
-Phone: ${phone}%0A
-Location: ${finalLocation}%0A
---------------------%0A
-${orderList}%0A
---------------------%0A
-Subtotal: KES ${subtotal}%0A
-Delivery: KES ${delivery}%0A
-Total: KES ${total}`;
+    try {
+      setLoading(true);
+      const result = await createCheckout(payload);
+      const orderNumber = result.orderNumber;
 
-    const url = `https://wa.me/254117954929?text=${message}`;
+      const whatsappUrl = buildWhatsAppUrl({
+        orderNumber,
+        customerName: name,
+        phone,
+        location: finalLocation,
+        items: cart,
+        subtotal,
+        delivery,
+        total,
+      });
 
-    window.open(url, "_blank");
-    clearCart();
+      window.open(whatsappUrl, "_blank");
+      clearCart();
+    } catch (error) {
+      alert(error.message || "Unable to complete checkout.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
