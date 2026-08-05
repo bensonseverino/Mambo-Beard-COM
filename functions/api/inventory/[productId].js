@@ -1,3 +1,5 @@
+import { ensureSchema } from "../../lib/schema.js";
+
 export async function onRequestGet(context) {
   const { env, params } = context;
   const productId = params.productId;
@@ -13,6 +15,8 @@ export async function onRequestGet(context) {
   }
 
   try {
+    await ensureSchema(env);
+
     const inventory = await env.DB.prepare(
       `SELECT pv.id, pv.product_id, pv.color_id, pv.size, pv.stock
        FROM product_variants pv

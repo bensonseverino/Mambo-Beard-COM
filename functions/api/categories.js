@@ -1,7 +1,10 @@
+import { ensureSchema } from "../lib/schema.js";
+
 export async function onRequestGet(context) {
   const { env } = context;
 
   try {
+    await ensureSchema(env);
     const result = await env.DB.prepare(
       `SELECT DISTINCT category FROM products WHERE active = 1 AND category IS NOT NULL ORDER BY category ASC;`,
     ).all();

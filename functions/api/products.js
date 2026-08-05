@@ -1,7 +1,10 @@
+import { ensureSchema } from "../lib/schema.js";
+
 export async function onRequestGet(context) {
   const { env, request } = context;
 
   try {
+    await ensureSchema(env);
     const url = new URL(request.url);
     const category = url.searchParams.get("category");
     const featured = url.searchParams.get("featured");

@@ -1,3 +1,5 @@
+import { ensureSchema } from "../../lib/schema.js";
+
 export async function onRequestGet(context) {
   const { env, params } = context;
   const slug = params.slug;
@@ -13,6 +15,8 @@ export async function onRequestGet(context) {
   }
 
   try {
+    await ensureSchema(env);
+
     // Look up by slug or id, only active products
     const productResult = await env.DB.prepare(
       `SELECT id, slug, name, description, price, category, featured

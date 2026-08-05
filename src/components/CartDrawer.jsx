@@ -24,12 +24,32 @@ export default function CartDrawer({ open, toggle }) {
   const total = subtotal + delivery;
 
   const handleCheckout = async () => {
+    if (loading) return;
+
     if (!name || !email || !phone || !zone) {
       return alert("Fill all required details");
     }
 
     if (zone === "Other" && !customLocation) {
       return alert("Enter your location");
+    }
+
+    if (cart.length === 0) {
+      return alert("Your cart is empty");
+    }
+
+    // Every cart item must have a size and color selected.
+    const missingOptions = cart.find(
+      (item) =>
+        !item.productId ||
+        !item.selectedSize ||
+        !item.selectedColor ||
+        !item.selectedColorId,
+    );
+    if (missingOptions) {
+      return alert(
+        `${missingOptions.name} is missing a size or color selection.`,
+      );
     }
 
     const finalLocation = zone === "Other" ? customLocation : zone;
@@ -60,9 +80,9 @@ export default function CartDrawer({ open, toggle }) {
         phone,
         location: finalLocation,
         items: cart,
-        subtotal,
-        delivery,
-        total,
+        subtotal: result.subtotal ?? subtotal,
+        delivery: result.deliveryFee ?? delivery,
+        total: result.total ?? total,
       });
 
       window.open(whatsappUrl, "_blank");

@@ -1,7 +1,10 @@
+import { ensureSchema } from "../lib/schema.js";
+
 export async function onRequestGet(context) {
   const { env } = context;
 
   try {
+    await ensureSchema(env);
     const result = await env.DB.prepare(
       `SELECT DISTINCT c.name, c.hex
        FROM product_colors c
