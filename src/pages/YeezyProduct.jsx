@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import useProduct from "../hooks/useProduct";
 import useProducts from "../hooks/useProducts";
@@ -58,20 +58,27 @@ function ImageCarouselControls({ direction, onClick }) {
 function ProductGallery({ images }) {
   const [current, setCurrent] = useState(0);
   const [fading, setFading] = useState(false);
+  const fadeTimeout = useRef(null);
 
   // Reset index when images change (e.g. color switch)
   useEffect(() => {
     setCurrent(0);
     setFading(false);
+    // Cancel any in-flight fade so a stale index can't land after a switch
+    if (fadeTimeout.current) {
+      clearTimeout(fadeTimeout.current);
+      fadeTimeout.current = null;
+    }
   }, [images]);
 
   const goTo = useCallback(
     (index) => {
       if (fading || !images.length) return;
       setFading(true);
-      setTimeout(() => {
+      fadeTimeout.current = setTimeout(() => {
         setCurrent((index + images.length) % images.length);
         setFading(false);
+        fadeTimeout.current = null;
       }, 250);
     },
     [fading, images.length],
@@ -187,11 +194,15 @@ function SizeSelector({ sizes, selected, onSelect, getStock, selectedColorId }) 
 // ─────────────────────────────────────────────────────────────
 // PRODUCT INFO
 // ─────────────────────────────────────────────────────────────
-function ProductInfo({ product, galleryImages }) {
+function ProductInfo({
+  product,
+  galleryImages,
+  selectedColorIdx,
+  onSelectColor,
+}) {
   const { addToCart } = useCart();
   const [open, setOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState(null);
-  const [selectedColorIdx, setSelectedColorIdx] = useState(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [showError, setShowError] = useState(false);
@@ -222,7 +233,7 @@ function ProductInfo({ product, galleryImages }) {
   // Reset size when color changes (size may be unavailable for new color)
   useEffect(() => {
     setSelectedSize(null);
-  }, [selectedColorIdx]);
+  }, [selectedColorIdx, product.id]);
 
   const isReady = selectedSize !== null && selectedColor !== null;
   const currentStock = isReady ? getStock(selectedColor.id, selectedSize) : 0;
@@ -349,7 +360,7 @@ function ProductInfo({ product, galleryImages }) {
               {colors.map((color, idx) => (
                 <button
                   key={color.id}
-                  onClick={() => setSelectedColorIdx(idx)}
+                  onClick={() => onSelectColor(idx)}
                   aria-label={`Select ${color.name}`}
                   className={`
                     relative
@@ -590,6 +601,10 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
       ? product.images.filter((img) => img.colorId === colorId)
       : product.images;
 
+    // Fallback: if no uploaded images are tagged with this color,
+    // show all images rather than an empty gallery
+    if (!filtered.length) filtered = product.images;
+
     // Sort by sortOrder
     filtered = [...filtered].sort((a, b) => a.sortOrder - b.sortOrder);
     return filtered.map((img) => buildImageUrl(img.path));
@@ -648,7 +663,12 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         <ProductGallery images={galleryImages} />
 
         {/* PRODUCT INFO */}
-        <ProductInfo product={product} galleryImages={galleryImages} />
+        <ProductInfo
+          product={product}
+          galleryImages={galleryImages}
+          selectedColorIdx={selectedColorIdx}
+          onSelectColor={setSelectedColorIdx}
+        />
 
         {/* TIMELINE SCROLL */}
         <ProductTimeline
