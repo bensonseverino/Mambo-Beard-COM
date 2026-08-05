@@ -16,7 +16,7 @@ export default function ProductCard({ product }) {
         <img
           src={imageSrc}
           alt={product.name}
-          className="w-full bg-gray-700 "
+          className="w-full aspect-3/4 object-cover bg-[#f5fffa]"
           loading="lazy"
         />
       </Link>
