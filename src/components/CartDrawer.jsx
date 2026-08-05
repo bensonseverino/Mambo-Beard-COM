@@ -30,6 +30,10 @@ export default function CartDrawer({ open, toggle }) {
       return alert("Fill all required details");
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return alert("Enter a valid email address");
+    }
+
     if (zone === "Other" && !customLocation) {
       return alert("Enter your location");
     }
@@ -69,6 +73,11 @@ export default function CartDrawer({ open, toggle }) {
       })),
     };
 
+    // Open a blank window now so the browser keeps the user gesture; it is
+    // only navigated to WhatsApp after the order is saved. This avoids the
+    // popup blocker killing the window when the API call takes a moment.
+    const popup = window.open("", "_blank");
+
     try {
       setLoading(true);
       const result = await createCheckout(payload);
@@ -85,9 +94,15 @@ export default function CartDrawer({ open, toggle }) {
         total: result.total ?? total,
       });
 
-      window.open(whatsappUrl, "_blank");
+      if (popup && !popup.closed) {
+        popup.location.href = whatsappUrl;
+      } else {
+        // Popup was blocked — send the customer to WhatsApp in this tab.
+        window.location.href = whatsappUrl;
+      }
       clearCart();
     } catch (error) {
+      if (popup && !popup.closed) popup.close();
       alert(error.message || "Unable to complete checkout.");
     } finally {
       setLoading(false);
@@ -185,9 +200,10 @@ export default function CartDrawer({ open, toggle }) {
 
       <button
         onClick={handleCheckout}
-        className="w-full mt-4 bg-black text-white py-2"
+        disabled={loading}
+        className="w-full mt-4 bg-black text-white py-2 disabled:opacity-60"
       >
-        Checkout via WhatsApp
+        {loading ? "Placing order…" : "Checkout via WhatsApp"}
       </button>
     </div>
   );
