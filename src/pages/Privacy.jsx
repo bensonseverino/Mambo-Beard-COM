@@ -1,8 +1,14 @@
-import React from "react";
+import SEO from "../components/SEO";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-white text-black px-6 md:px-20 py-16">
+    <>
+      <SEO
+        title="Privacy Policy | Mambo Beard"
+        description="Mambo Beard Club privacy policy — what we collect, how we use your data, your rights, and our SMS/email marketing terms."
+        path="/privacy"
+      />
+      <div className="min-h-screen bg-white text-black px-6 md:px-20 py-16">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <header className="mb-10">
@@ -124,7 +130,8 @@ export default function PrivacyPolicy() {
           © {new Date().getFullYear()} Mambo Beard Club. All rights reserved.
         </footer>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

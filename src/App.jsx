@@ -1,15 +1,39 @@
 // App.jsx
 
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import Home from "./pages/Home";
 import YeezyProduct from "./pages/YeezyProduct";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
 import Header from "./components/Header";
 import CartDrawer from "./components/CartDrawer";
 import VipPopup from "./components/VipPopup";
+import SEO from "./components/SEO";
 import { CartProvider } from "./context/CartContext";
+import {
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  organizationJsonLd,
+  websiteJsonLd,
+} from "./utils/seo";
+
+// Rarely-visited static pages are code-split (loaded on demand).
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+
+// Global defaults + Organization/WebSite structured data. Rendered before
+// the routes so page-level <SEO> (mounted later) wins for duplicates.
+function GlobalSEO() {
+  const jsonLd = useMemo(() => [organizationJsonLd(), websiteJsonLd()], []);
+  return (
+    <SEO
+      title={DEFAULT_TITLE}
+      description={DEFAULT_DESCRIPTION}
+      path="/"
+      jsonLd={jsonLd}
+    />
+  );
+}
 
 // Returns true when viewport is below Tailwind's md breakpoint (768px)
 function useIsMobile() {
@@ -38,30 +62,36 @@ function App() {
   }, [maxZoom]);
 
   return (
-    <CartProvider>
-      <BrowserRouter>
-        <Header
-          toggleCart={() => setCartOpen(!cartOpen)}
-          zoomLevel={zoomLevel}
-          maxZoom={maxZoom}
-          toggleZoom={toggleZoom}
-        />
+    <HelmetProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <GlobalSEO />
 
-        <Routes>
-          <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
-          <Route
-            path="/product/:slug"
-            element={<YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />}
+          <Header
+            toggleCart={() => setCartOpen(!cartOpen)}
+            zoomLevel={zoomLevel}
+            maxZoom={maxZoom}
+            toggleZoom={toggleZoom}
           />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-        </Routes>
 
-        <CartDrawer open={cartOpen} toggle={() => setCartOpen(false)} />
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
+              <Route
+                path="/product/:slug"
+                element={<YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />}
+              />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+            </Routes>
+          </Suspense>
 
-        <VipPopup />
-      </BrowserRouter>
-    </CartProvider>
+          <CartDrawer open={cartOpen} toggle={() => setCartOpen(false)} />
+
+          <VipPopup />
+        </BrowserRouter>
+      </CartProvider>
+    </HelmetProvider>
   );
 }
 

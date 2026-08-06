@@ -18,4 +18,8 @@
       "bucket_name": "mambo-beard-products",
     },
   ],
+
+  "vars": {
+    "SITE_URL": "https://www.mambobeard.com",
+  },
 }

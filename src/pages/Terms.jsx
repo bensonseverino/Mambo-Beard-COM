@@ -1,8 +1,14 @@
-import React from "react";
+import SEO from "../components/SEO";
 
 export default function TermsOfService() {
   return (
-    <div className="min-h-screen bg-white text-black px-6 md:px-20 py-16">
+    <>
+      <SEO
+        title="Terms of Service | Mambo Beard"
+        description="Mambo Beard Club terms of service — rules for using our website, placing orders, shipping, returns, and more."
+        path="/terms"
+      />
+      <div className="min-h-screen bg-white text-black px-6 md:px-20 py-16">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <header className="mb-10">
@@ -114,7 +120,8 @@ export default function TermsOfService() {
           © {new Date().getFullYear()} Mambo Beard Club. All rights reserved.
         </footer>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -1,7 +1,14 @@
 // pages/Home.jsx
+import { useMemo } from "react";
 import useProducts from "../hooks/useProducts";
 import ProductCard from "../components/Productcard";
 import MamboBeardFooter from "../components/Footer";
+import SEO from "../components/SEO";
+import {
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  collectionJsonLd,
+} from "../utils/seo";
 
 // ...existing code...
 
@@ -58,8 +65,23 @@ export default function Home({ zoomLevel }) {
   // Skeleton count for loading state
   const skeletonCount = 6;
 
+  // Backend-driven structured data: updates automatically as products are
+  // created, updated, unpublished, or deleted.
+  const seoJsonLd = useMemo(
+    () =>
+      products.length ? [collectionJsonLd("All Products", "/", products)] : [],
+    [products],
+  );
+
   return (
     <>
+      <SEO
+        title={DEFAULT_TITLE}
+        description={DEFAULT_DESCRIPTION}
+        path="/"
+        jsonLd={seoJsonLd}
+      />
+
       {/* Desktop always shows grid; Mobile shows carousel at max zoom */}
       <div className="bg-[#F5FFFA] text-black overflow-hidden">
         {/* Error state */}

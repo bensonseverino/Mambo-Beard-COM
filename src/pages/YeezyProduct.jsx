@@ -4,6 +4,18 @@ import useProduct from "../hooks/useProduct";
 import useProducts from "../hooks/useProducts";
 import { useCart } from "../context/CartContext";
 import { buildImageUrl } from "../services/api";
+import SEO from "../components/SEO";
+import {
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  NOT_FOUND_TITLE,
+  productTitle,
+  productDescription,
+  pickProductImageMeta,
+  productImageAlt,
+  productJsonLd,
+  breadcrumbJsonLd,
+} from "../utils/seo";
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE CAROUSEL CONTROLS
@@ -55,16 +67,23 @@ function ImageCarouselControls({ direction, onClick }) {
 // ─────────────────────────────────────────────────────────────
 // PRODUCT GALLERY
 // ─────────────────────────────────────────────────────────────
-function ProductGallery({ images }) {
+function ProductGallery({ images, productName }) {
   const [current, setCurrent] = useState(0);
   const [fading, setFading] = useState(false);
   const fadeTimeout = useRef(null);
 
-  // Reset index when images change (e.g. color switch)
-  useEffect(() => {
+  // Reset the index when the image set changes (e.g. color switch).
+  // State is adjusted during render (React's documented pattern) rather
+  // than in an effect.
+  const [prevImages, setPrevImages] = useState(images);
+  if (prevImages !== images) {
+    setPrevImages(images);
     setCurrent(0);
     setFading(false);
-    // Cancel any in-flight fade so a stale index can't land after a switch
+  }
+
+  // Cancel any in-flight fade so a stale index can't land after a switch
+  useEffect(() => {
     if (fadeTimeout.current) {
       clearTimeout(fadeTimeout.current);
       fadeTimeout.current = null;
@@ -114,8 +133,15 @@ function ProductGallery({ images }) {
           <img
             key={images[current]}
             src={images[current]}
-            alt={`Product image ${current + 1}`}
+            alt={
+              productName
+                ? `${productName} — image ${current + 1}`
+                : `Product image ${current + 1}`
+            }
             draggable={false}
+            loading={current === 0 ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={current === 0 ? "high" : "auto"}
             className="absolute inset-0 w-full h-full object-cover"
             style={{
               opacity: fading ? 0 : 1,
@@ -207,6 +233,15 @@ function ProductInfo({
   const [added, setAdded] = useState(false);
   const [showError, setShowError] = useState(false);
 
+  // Reset the size when the color or product changes (the size may be
+  // unavailable for the new color). Adjusted during render, not in an effect.
+  const resetKey = `${selectedColorIdx}-${product.id}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey);
+    setSelectedSize(null);
+  }
+
   const colors = product.colors || [];
   const sizes = product.sizes || [];
   const variants = product.variants || [];
@@ -229,11 +264,6 @@ function ProductInfo({
   );
 
   const isOutOfStock = totalStock <= 0;
-
-  // Reset size when color changes (size may be unavailable for new color)
-  useEffect(() => {
-    setSelectedSize(null);
-  }, [selectedColorIdx, product.id]);
 
   const isReady = selectedSize !== null && selectedColor !== null;
   const currentStock = isReady ? getStock(selectedColor.id, selectedSize) : 0;
@@ -585,10 +615,13 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
   // Derive the selected color index (starts at null — no selection)
   const [selectedColorIdx, setSelectedColorIdx] = useState(null);
 
-  // Reset color selection when product changes
-  useEffect(() => {
+  // Reset color selection when the product changes — adjusted during
+  // render (React's documented pattern) instead of in an effect.
+  const [prevSlug, setPrevSlug] = useState(slug);
+  if (prevSlug !== slug) {
+    setPrevSlug(slug);
     setSelectedColorIdx(null);
-  }, [slug]);
+  }
 
   // Build gallery images filtered by selected color
   const galleryImages = useMemo(() => {
@@ -610,57 +643,113 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
     return filtered.map((img) => buildImageUrl(img.path));
   }, [product, selectedColorIdx]);
 
+  // Backend-driven SEO metadata (memoized — no Helmet re-renders on state
+  // changes like color/size selection).
+  const seo = useMemo(() => {
+    if (!product) return null;
+    const { image, url: ogImage } = pickProductImageMeta(product);
+    return {
+      title: productTitle(product),
+      description: productDescription(product),
+      image: ogImage,
+      imageAlt: productImageAlt(product, image),
+      heroImage: galleryImages[0] || "",
+      jsonLd: [
+        productJsonLd(product, slug),
+        breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: product.name, path: `/product/${slug}` },
+        ]),
+      ],
+    };
+  }, [product, slug, galleryImages]);
+
+  const productPath = `/product/${slug}`;
+
   // LOADING
   if (loading) {
-    return <ProductPageSkeleton />;
+    return (
+      <>
+        <SEO
+          title={DEFAULT_TITLE}
+          description={DEFAULT_DESCRIPTION}
+          path={productPath}
+        />
+        <ProductPageSkeleton />
+      </>
+    );
   }
 
   // ERROR / NOT FOUND
   if (error || !product) {
     return (
+      <>
+        <SEO
+          title={NOT_FOUND_TITLE}
+          description="The product you are looking for does not exist."
+          path={productPath}
+          noindex
+        />
+        <div
+          className="
+            min-h-screen
+            flex items-center justify-center
+            px-4
+          "
+          style={{
+            background: "#f5fffa",
+            fontFamily: "var(--sans)",
+          }}
+        >
+          <div className="text-center">
+            <h2 className="text-xl font-bold mb-2">Product not found</h2>
+            <p className="text-black/60">
+              The product you are looking for does not exist.
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SEO
+        title={seo.title}
+        description={seo.description}
+        path={productPath}
+        type="product"
+        image={seo.image}
+        imageAlt={seo.imageAlt}
+        jsonLd={seo.jsonLd}
+      >
+        {/* Hero image preload — first gallery image, only when one exists */}
+        {seo.heroImage && (
+          <link rel="preload" as="image" href={seo.heroImage} />
+        )}
+      </SEO>
+
       <div
         className="
-          min-h-screen
-          flex items-center justify-center
-          px-4
+          min-h-screen w-full
+          flex flex-col items-center justify-start
+          py-10 md:py-16 px-4 pb-16
+          select-none
         "
         style={{
           background: "#f5fffa",
           fontFamily: "var(--sans)",
         }}
       >
-        <div className="text-center">
-          <h2 className="text-xl font-bold mb-2">Product not found</h2>
-          <p className="text-black/60">
-            The product you are looking for does not exist.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="
-        min-h-screen w-full
-        flex flex-col items-center justify-start
-        py-10 md:py-16 px-4 pb-16
-        select-none
-      "
-      style={{
-        background: "#f5fffa",
-        fontFamily: "var(--sans)",
-      }}
-    >
-      <main
-        className="
-          flex-1 w-full
-          flex flex-col items-center justify-start
-          gap-10 md:gap-14
-        "
-      >
-        {/* PRODUCT GALLERY */}
-        <ProductGallery images={galleryImages} />
+        <main
+          className="
+            flex-1 w-full
+            flex flex-col items-center justify-start
+            gap-10 md:gap-14
+          "
+        >
+          {/* PRODUCT GALLERY */}
+          <ProductGallery images={galleryImages} productName={product.name} />
 
         {/* PRODUCT INFO */}
         <ProductInfo
@@ -677,7 +766,8 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
           maxZoom={maxZoom}
           showTimelineFromHome={showTimelineFromHome}
         />
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }

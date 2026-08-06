@@ -1,6 +1,7 @@
 // components/ProductCard.jsx
 import { Link } from "react-router-dom";
 import { buildImageUrl } from "../services/api";
+import { BRAND } from "../utils/seo";
 
 export default function ProductCard({ product }) {
   // Use thumbnail path from API, construct full R2 URL
@@ -15,9 +16,10 @@ export default function ProductCard({ product }) {
       <Link to={`/product/${product.slug || product.id}`} state={{ fromHome: true }}>
         <img
           src={imageSrc}
-          alt={product.name}
+          alt={`${BRAND} ${product.name}`}
           className="w-full aspect-3/4 object-cover bg-[#f5fffa]"
           loading="lazy"
+          decoding="async"
         />
       </Link>
 
