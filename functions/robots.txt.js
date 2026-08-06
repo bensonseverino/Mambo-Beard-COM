@@ -11,6 +11,7 @@ export async function onRequestGet(context) {
 
   const body = `User-agent: *
 Allow: /
+Disallow: /api/
 
 Sitemap: ${site}/sitemap.xml
 `;

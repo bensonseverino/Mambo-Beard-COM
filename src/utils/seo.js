@@ -8,7 +8,6 @@
 // All helpers are side-effect free and safe for future SSR / prerendering
 // (they guard against a missing `window`).
 
-import heroImage from "../assets/hero.png";
 import { buildImageUrl } from "../services/api";
 
 export const BRAND = "Mambo Beard";
@@ -30,9 +29,10 @@ export const canonicalUrl = (path = "/") => {
   return `${base}${clean}`;
 };
 
-/** Brand fallback image used when a product has no photos. Never empty. */
-export const brandDefaultImage = () =>
-  new URL(heroImage, getSiteUrl() || "http://localhost").href;
+/** Brand fallback image used when a product has no photos. Never empty.
+ * Served from /hero.png (public/) so the client and the edge middleware
+ * always agree on the absolute URL. */
+export const brandDefaultImage = () => canonicalUrl("/hero.png");
 
 const truncate = (text, max = 160) => {
   const clean = String(text || "")

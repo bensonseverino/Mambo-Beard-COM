@@ -18,4 +18,15 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Cloudflare Pages Functions run in the Workers runtime, not the browser.
+    files: ['functions/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.worker,
+        ...globals.serviceworker,
+        HTMLRewriter: 'readonly',
+      },
+    },
+  },
 ])

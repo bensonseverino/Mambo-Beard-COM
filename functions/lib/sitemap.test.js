@@ -68,5 +68,6 @@ test("robots.txt allows crawling and references the sitemap", async () => {
   const body = await response.text();
   assert.match(body, /User-agent: \*/);
   assert.match(body, /Allow: \//);
+  assert.match(body, /Disallow: \/api\//);
   assert.match(body, /Sitemap: https:\/\/www\.mambobeard\.com\/sitemap\.xml/);
 });
