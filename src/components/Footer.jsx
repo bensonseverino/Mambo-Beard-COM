@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import footerSvg from "../assets/footer-01.svg";
 
 const socialLinks = [
   { label: "WHATSAPP CHANNEL", href: "#whatsapp", isExternal: true },
@@ -47,18 +46,6 @@ export default function MamboBeardFooter() {
       className="w-full bg-[#f5fffa] overflow-hidden select-none mt-auto"
       // style={{ fontFamily: "'Bebas Neue', sans-serif" }}
     >
-      {/* Footer SVG
-      <div className="w-full flex justify-center px-0 py-0 pb-1">
-        <img
-          src={footerSvg}
-          alt="Mambo Beard"
-          className="w-full h-auto object-cover"
-          style={{
-            filter:
-              "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)",
-          }}
-        />
-      </div> */}
       {/* Social links row */}
       <div className="flex justify-between items-end px-3 pt-1  gap-1 flex-nowrap sm:flex-wrap overflow-x-auto">
         {socialLinks.map((link) => {
@@ -106,19 +93,6 @@ export default function MamboBeardFooter() {
             </LinkComponent>
           );
         })}
-      </div>
-
-      {/* Footer SVG */}
-      <div className="w-full flex justify-center px-0 py-0">
-        <img
-          src={footerSvg}
-          alt="Mambo Beard"
-          className="w-full h-auto object-cover"
-          style={{
-            filter:
-              "brightness(0) saturate(100%) sepia(1) hue-rotate(20deg) saturate(2.2) brightness(0.45)",
-          }}
-        />
       </div>
     </footer>
   );
