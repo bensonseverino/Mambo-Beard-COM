@@ -106,7 +106,13 @@ export const SCHEMA_STATEMENTS = [
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS subscribers (
+    id TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers (phone)`,
 ];
 
 export const SIZE_SEED_STATEMENT = `INSERT OR IGNORE INTO sizes (id, name) VALUES
@@ -123,7 +129,7 @@ export const SIZE_SEED_STATEMENT = `INSERT OR IGNORE INTO sizes (id, name) VALUE
 export const ensureSchema = async (env) => {
   const db = env?.DB;
   if (!db) return;
-  const indexStatement = SCHEMA_STATEMENTS.find((sql) =>
+  const indexStatements = SCHEMA_STATEMENTS.filter((sql) =>
     sql.startsWith("CREATE UNIQUE INDEX"),
   );
   const statements = SCHEMA_STATEMENTS.filter(
@@ -132,15 +138,15 @@ export const ensureSchema = async (env) => {
   statements.push(db.prepare(SIZE_SEED_STATEMENT));
   await db.batch(statements);
 
-  // A pre-existing customers table with duplicate phones would make the
-  // unique index fail to build. Catch it so one dirty table can't take down
+  // A pre-existing table with duplicate values would make its unique index
+  // fail to build. Catch each one so a single dirty table can't take down
   // every handler that bootstraps the schema.
-  if (indexStatement) {
+  for (const indexStatement of indexStatements) {
     try {
       await db.prepare(indexStatement).run();
     } catch (error) {
       console.warn(
-        "[schema] Could not create unique index on customers(phone):",
+        "[schema] Could not create unique index:",
         error?.message || error,
       );
     }

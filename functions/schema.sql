@@ -120,3 +120,11 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone);
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers (phone);

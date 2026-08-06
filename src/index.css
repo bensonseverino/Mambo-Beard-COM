@@ -159,3 +159,109 @@ code {
     opacity: 1;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   VIP SMS bottom sheet
+   ───────────────────────────────────────────────────────────── */
+.vip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  will-change: opacity;
+  animation: mb-vip-fade-in 0.35s ease-out;
+}
+
+.vip-overlay.closing {
+  animation: mb-vip-fade-out 0.35s ease-in forwards;
+}
+
+.vip-dialog {
+  position: relative;
+  width: 100%;
+  height: 30vh;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #f5fffa;
+  color: #43392f;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+  padding: 20px 20px 18px;
+  overflow: hidden;
+  outline: none;
+  will-change: transform, opacity;
+  animation: mb-vip-sheet-in 0.35s ease-out;
+}
+
+.vip-dialog.closing {
+  animation: mb-vip-sheet-out 0.35s ease-in forwards;
+}
+
+/* Overrides the global h2 color (unlayered beats Tailwind's layered
+   utilities), so the heading matches the GET EARLY ACCESS button brown. */
+.vip-dialog h2 {
+  color: #43392f;
+}
+
+@media (min-width: 768px) {
+  .vip-dialog {
+    height: 28vh;
+    min-height: 240px; /* guarantees the form + error slot always fit */
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .vip-dialog {
+    height: 25vh;
+    min-height: 240px;
+    max-height: 320px;
+    padding: 24px;
+  }
+}
+
+@keyframes mb-vip-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mb-vip-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mb-vip-sheet-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes mb-vip-sheet-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}

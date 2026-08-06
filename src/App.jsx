@@ -8,6 +8,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Header from "./components/Header";
 import CartDrawer from "./components/CartDrawer";
+import VipPopup from "./components/VipPopup";
 import { CartProvider } from "./context/CartContext";
 
 // Returns true when viewport is below Tailwind's md breakpoint (768px)
@@ -26,17 +27,14 @@ function useIsMobile() {
 
 function App() {
   const [cartOpen, setCartOpen] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(0);
+  const [rawZoomLevel, setRawZoomLevel] = useState(0);
   const isMobile = useIsMobile();
   const maxZoom = isMobile ? 2 : 1;
-
-  // Clamp zoom when switching from mobile → desktop
-  useEffect(() => {
-    setZoomLevel((z) => Math.min(z, maxZoom));
-  }, [maxZoom]);
+  // Clamp zoom at render time instead of mutating state in an effect.
+  const zoomLevel = Math.min(rawZoomLevel, maxZoom);
 
   const toggleZoom = useCallback(() => {
-    setZoomLevel((z) => (z >= maxZoom ? 0 : z + 1));
+    setRawZoomLevel((z) => (z >= maxZoom ? 0 : z + 1));
   }, [maxZoom]);
 
   return (
@@ -60,6 +58,8 @@ function App() {
         </Routes>
 
         <CartDrawer open={cartOpen} toggle={() => setCartOpen(false)} />
+
+        <VipPopup />
       </BrowserRouter>
     </CartProvider>
   );
