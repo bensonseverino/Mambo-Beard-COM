@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import FooterQuote from "./FooterQuote";
 
 const socialLinks = [
   { label: "WHATSAPP CHANNEL", href: "#whatsapp", isExternal: true },
@@ -94,6 +95,9 @@ export default function MamboBeardFooter() {
           );
         })}
       </div>
+
+      {/* Daily Ye Quote */}
+      <FooterQuote />
     </footer>
   );
 }
