@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import FooterQuote from "./FooterQuote";
 
 const socialLinks = [
-  { label: "WHATSAPP CHANNEL", href: "#whatsapp", isExternal: true },
   { label: "INSTAGRAM", href: "#instagram", isExternal: true },
   { label: "FACEBOOK", href: "#facebook", isExternal: true },
   { label: "TIKTOK", href: "#tiktok", isExternal: true },
