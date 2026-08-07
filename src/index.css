@@ -265,3 +265,87 @@ code {
     opacity: 0;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Early Access landing page
+   ───────────────────────────────────────────────────────────── */
+
+/* Unlayered so it beats BOTH the global h1 rule (unlayered, but lower
+   specificity) and Tailwind's layered utilities. */
+.ea-hero-title {
+  color: #43392f;
+  font-family: var(--heading);
+  font-weight: 500;
+  font-size: clamp(46px, 7.5vw, 104px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.ea-eyebrow {
+  color: #43392f;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+}
+
+/* Staggered entrance — transform/opacity only, GPU-friendly. */
+.ea-rise {
+  animation: mb-ea-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ea-rise-2 {
+  animation-delay: 0.08s;
+}
+.ea-rise-3 {
+  animation-delay: 0.16s;
+}
+.ea-rise-4 {
+  animation-delay: 0.24s;
+}
+.ea-rise-5 {
+  animation-delay: 0.32s;
+}
+
+@keyframes mb-ea-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrolling marquee strip — brown on mint, seamless 50% loop. */
+.ea-marquee {
+  background: #43392f;
+  color: #f5fffa;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ea-marquee-track {
+  display: inline-flex;
+  animation: mb-ea-marquee 32s linear infinite;
+  will-change: transform;
+}
+
+@keyframes mb-ea-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ea-rise,
+  .ea-rise-2,
+  .ea-rise-3,
+  .ea-rise-4,
+  .ea-rise-5,
+  .ea-marquee-track {
+    animation: none;
+  }
+}

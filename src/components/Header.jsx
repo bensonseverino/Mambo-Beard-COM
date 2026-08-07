@@ -27,9 +27,32 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
   const showBackArrow =
     isProductPage || isTermsPage || isPrivacyPage || (isHome && isAtMax);
 
+  const logo = (
+    <img
+      src={DistortedMambo}
+      alt="MAMBO BEARD"
+      style={{
+        height: "4rem",
+        filter:
+          "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)",
+      }}
+    />
+  );
+
+  // On the homepage (temporary Early Access landing page) the header is a
+  // clean centered logo only — no zoom toggle, no cart. Product/static pages
+  // keep the back arrow and cart.
+  if (isHome) {
+    return (
+      <header className="sticky top-0 z-10 w-full flex items-center justify-center px-4 py-1 bg-[#F5FFFA] text-black">
+        {logo}
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-10 w-full grid grid-cols-3 items-center px-4 py-1  bg-[#F5FFFA] text-black ">
-      {/* Left: Back / Zoom toggle */}
+      {/* Left: Back */}
       <div className="flex items-center">
         <button
           onClick={handleLeftButton}
@@ -50,17 +73,7 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
       </div>
 
       {/* Center: Logo */}
-      <div className="flex justify-center">
-        <img
-          src={DistortedMambo}
-          alt="MAMBO BEARD"
-          style={{
-            height: "4rem",
-            filter:
-              "brightness(0) saturate(100%) invert(20%) sepia(30%) saturate(800%) hue-rotate(350deg) brightness(95%) contrast(90%)",
-          }}
-        />
-      </div>
+      <div className="flex justify-center">{logo}</div>
 
       {/* Right: Cart */}
       <div className="flex justify-end">
