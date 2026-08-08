@@ -12,7 +12,7 @@ import { buildImageUrl } from "../services/api";
 
 export const BRAND = "Mambo Beard";
 export const CURRENCY = "KES";
-export const DEFAULT_TITLE = "Mambo Beard | Premium Kenyan Streetwear";
+export const DEFAULT_TITLE = "Mambo Beard Club";
 export const DEFAULT_DESCRIPTION =
   "Shop premium Kenyan streetwear drops from Mambo Beard — limited releases, exclusive designs and members-only offers.";
 export const NOT_FOUND_TITLE = "Product Not Found | Mambo Beard";
@@ -75,9 +75,7 @@ export const productImageAlt = (product, image) => {
     color = product.colors.find((entry) => entry.id === image.colorId)?.name;
   }
   color = color || product?.colors?.[0]?.name;
-  return [BRAND, product?.name, color, image?.type]
-    .filter(Boolean)
-    .join(" ");
+  return [BRAND, product?.name, color, image?.type].filter(Boolean).join(" ");
 };
 
 // ─────────────────────────────────────────────────────────────
