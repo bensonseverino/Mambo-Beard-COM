@@ -39,20 +39,9 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
     />
   );
 
-  // On the homepage (temporary Early Access landing page) the header is a
-  // clean centered logo only — no zoom toggle, no cart. Product/static pages
-  // keep the back arrow and cart.
-  if (isHome) {
-    return (
-      <header className="sticky top-0 z-10 w-full flex items-center justify-center px-4 py-1 bg-[#F5FFFA] text-black">
-        {logo}
-      </header>
-    );
-  }
-
   return (
     <header className="sticky top-0 z-10 w-full grid grid-cols-3 items-center px-4 py-1  bg-[#F5FFFA] text-black ">
-      {/* Left: Back */}
+      {/* Left: Back / Zoom toggle */}
       <div className="flex items-center">
         <button
           onClick={handleLeftButton}
