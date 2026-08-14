@@ -16,6 +16,7 @@ import {
   productJsonLd,
   breadcrumbJsonLd,
 } from "../utils/seo";
+import { buildCartItem } from "../services/cart";
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE CAROUSEL CONTROLS
@@ -180,17 +181,17 @@ function ProductGallery({ images, productName }) {
 // ─────────────────────────────────────────────────────────────
 // SIZE SELECTOR
 // ─────────────────────────────────────────────────────────────
-function SizeSelector({ sizes, selected, onSelect, getStock, selectedColorId }) {
+function SizeSelector({ sizes, selected, onSelect, getStockFor }) {
   return (
     <div className="flex items-center justify-center gap-px">
       {sizes.map((size) => {
-        const isSelected = selected === size;
-        const stock = selectedColorId ? getStock(selectedColorId, size) : 1;
+        const isSelected = selected?.id === size.id;
+        const stock = getStockFor(size.name);
         const isDisabled = stock <= 0;
 
         return (
           <button
-            key={size}
+            key={size.id}
             onClick={() => !isDisabled && onSelect(size)}
             disabled={isDisabled}
             aria-pressed={isSelected}
@@ -209,7 +210,7 @@ function SizeSelector({ sizes, selected, onSelect, getStock, selectedColorId }) 
               }
             `}
           >
-            {size}
+            {size.name}
           </button>
         );
       })}
@@ -242,31 +243,70 @@ function ProductInfo({
     setSelectedSize(null);
   }
 
+  // Which selectors apply is driven entirely by the product's variation type.
+  const variationType =
+    product.variationType ||
+    (product.productType === "simple" ? "none" : "color_size");
+  const hasColor = variationType === "color" || variationType === "color_size";
+  const hasSize = variationType === "size" || variationType === "color_size";
+
   const colors = product.colors || [];
   const sizes = product.sizes || [];
   const variants = product.variants || [];
 
   const selectedColor = selectedColorIdx !== null ? colors[selectedColorIdx] : null;
 
-  // Stock checker
+  // Stock checker — color-only rows have a NULL size, size-only rows a NULL
+  // color. Passing null for a dimension matches rows where it's absent.
   const getStock = useCallback(
-    (colorId, size) => {
-      const v = variants.find((v) => v.colorId === colorId && v.size === size);
-      return v ? v.stock : 0;
+    (colorId, sizeName) => {
+      const variant = variants.find(
+        (v) =>
+          (colorId ? v.colorId === colorId : v.colorId == null) &&
+          (sizeName ? v.size === sizeName : v.size == null),
+      );
+      return variant ? variant.stock : 0;
     },
     [variants],
   );
 
-  // Check total stock for current product
-  const totalStock = useMemo(
-    () => variants.reduce((sum, v) => sum + v.stock, 0),
-    [variants],
+  // Per-size availability for the current selection context.
+  const getStockForSize = useCallback(
+    (sizeName) => {
+      if (variationType === "size") return getStock(null, sizeName);
+      if (selectedColor) return getStock(selectedColor.id, sizeName);
+      return 1; // no color chosen yet — keep every size tappable
+    },
+    [variationType, selectedColor, getStock],
   );
+
+  // Total stock: simple products use their single figure, everything else
+  // sums the variant rows.
+  const totalStock =
+    variationType === "none"
+      ? Number(product.stock) || 0
+      : variants.reduce((sum, v) => sum + v.stock, 0);
 
   const isOutOfStock = totalStock <= 0;
 
-  const isReady = selectedSize !== null && selectedColor !== null;
-  const currentStock = isReady ? getStock(selectedColor.id, selectedSize) : 0;
+  const isReady =
+    (hasColor ? selectedColor !== null : true) &&
+    (hasSize ? selectedSize !== null : true);
+
+  const currentStock =
+    variationType === "none"
+      ? Number(product.stock) || 0
+      : variationType === "color"
+        ? selectedColor
+          ? getStock(selectedColor.id, null)
+          : 0
+        : variationType === "size"
+          ? selectedSize
+            ? getStock(null, selectedSize.name)
+            : 0
+          : selectedColor && selectedSize
+            ? getStock(selectedColor.id, selectedSize.name)
+            : 0;
 
   const handleAddToCart = () => {
     if (!isReady) {
@@ -285,17 +325,17 @@ function ProductInfo({
 
     const firstImage = galleryImages.length > 0 ? galleryImages[0] : "";
 
-    addToCart({
-      id: `${product.id}-${selectedColor.id}-${selectedSize}`,
-      productId: product.id,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      selectedColor: selectedColor.name,
-      selectedColorId: selectedColor.id,
-      selectedSize,
-      image: firstImage,
-    });
+    addToCart(
+      buildCartItem({
+        product,
+        variationType,
+        selectedColor: selectedColor ? selectedColor.name : null,
+        selectedColorId: selectedColor ? selectedColor.id : null,
+        selectedSize: selectedSize ? selectedSize.name : null,
+        selectedSizeId: selectedSize ? selectedSize.id : null,
+        image: firstImage,
+      }),
+    );
 
     setTimeout(() => {
       setAdding(false);
@@ -303,6 +343,72 @@ function ProductInfo({
       setTimeout(() => setAdded(false), 1800);
     }, 700);
   };
+
+  const addToCartButton = (
+    <button
+      onClick={handleAddToCart}
+      disabled={adding || isOutOfStock}
+      className={`
+        relative overflow-hidden
+        w-full h-11
+        border
+        flex items-center justify-center
+        text-[10px]
+        tracking-[0.28em]
+        uppercase
+        font-light
+        transition-all duration-300
+        active:scale-[0.98]
+        focus:outline-none
+
+        ${
+          isReady && currentStock > 0
+            ? "border-black/20 hover:border-black/60 text-black"
+            : "border-black/10 text-black/30"
+        }
+
+        ${
+          adding || added
+            ? "bg-black text-white border-black"
+            : "bg-transparent"
+        }
+      `}
+    >
+      {/* BUTTON TEXT */}
+      <span
+        className="transition-all duration-300"
+        style={{
+          transform: adding ? "translateY(-2px)" : "translateY(0px)",
+          opacity: adding ? 0.8 : 1,
+        }}
+      >
+        {adding ? "Adding..." : added ? "Added to Cart" : "Add to Cart"}
+      </span>
+
+      {/* LOADING LINE */}
+      {adding && (
+        <span
+          className="
+            absolute bottom-0 left-0
+            h-1px bg-white
+          "
+          style={{
+            width: "100%",
+            animation: "loading 0.7s linear",
+          }}
+        />
+      )}
+    </button>
+  );
+
+  const errorMessage =
+    isReady && currentStock <= 0
+      ? "This variant is out of stock"
+      : variationType === "color"
+        ? "Please select a color"
+        : variationType === "size"
+          ? "Please select a size"
+          : "Please select size and color";
 
   return (
     <div className="flex flex-col items-center gap-1 w-full">
@@ -323,189 +429,155 @@ function ProductInfo({
         </p>
       )}
 
-      {/* EXPAND BUTTON */}
-      {!isOutOfStock && (
-        <button
-          onClick={() => setOpen((prev) => !prev)}
-          aria-expanded={open}
-          aria-label={open ? "Close options" : "Open options"}
-          className="
-            mt-2
-            w-8 h-8
-            border border-black/20
-            flex items-center justify-center
-            transition-all duration-300
-            hover:border-black/60
-            focus:outline-none
-          "
-        >
-          <span
-            className="text-base font-thin leading-none"
+      {/* Simple products have nothing to select — Add to Cart directly */}
+      {variationType === "none" ? (
+        <div className="mt-4 w-72 flex flex-col items-center gap-5 pb-2">
+          {addToCartButton}
+        </div>
+      ) : (
+        <>
+          {/* EXPAND BUTTON */}
+          {!isOutOfStock && (
+            <button
+              onClick={() => setOpen((prev) => !prev)}
+              aria-expanded={open}
+              aria-label={open ? "Close options" : "Open options"}
+              className="
+                mt-2
+                w-8 h-8
+                border border-black/20
+                flex items-center justify-center
+                transition-all duration-300
+                hover:border-black/60
+                focus:outline-none
+              "
+            >
+              <span
+                className="text-base font-thin leading-none"
+                style={{
+                  transform: open ? "rotate(45deg)" : "rotate(0deg)",
+                  transition: "transform 0.3s ease",
+                }}
+              >
+                +
+              </span>
+            </button>
+          )}
+
+          {/* EXPANDABLE PANEL */}
+          <div
+            className="
+              overflow-hidden
+              transition-all duration-500 ease-in-out
+              w-full flex justify-center
+            "
             style={{
-              transform: open ? "rotate(45deg)" : "rotate(0deg)",
-              transition: "transform 0.3s ease",
+              maxHeight: open && !isOutOfStock ? "400px" : "0px",
+              opacity: open && !isOutOfStock ? 1 : 0,
             }}
           >
-            +
-          </span>
-        </button>
-      )}
+            <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
+              {/* SIZE SECTION — only when the product supports sizes */}
+              {hasSize ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
+                    Select Size
+                  </p>
 
-      {/* EXPANDABLE PANEL */}
-      <div
-        className="
-          overflow-hidden
-          transition-all duration-500 ease-in-out
-          w-full flex justify-center
-        "
-        style={{
-          maxHeight: open && !isOutOfStock ? "400px" : "0px",
-          opacity: open && !isOutOfStock ? 1 : 0,
-        }}
-      >
-        <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
-          {/* SIZE SECTION */}
-          <div className="flex flex-col items-center gap-3">
-            <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
-              Select Size
-            </p>
+                  <SizeSelector
+                    sizes={sizes}
+                    selected={selectedSize}
+                    onSelect={setSelectedSize}
+                    getStockFor={getStockForSize}
+                  />
+                </div>
+              ) : null}
 
-            <SizeSelector
-              sizes={sizes}
-              selected={selectedSize}
-              onSelect={setSelectedSize}
-              getStock={getStock}
-              selectedColorId={selectedColor?.id}
-            />
-          </div>
+              {/* COLOR SECTION — only when the product supports colors */}
+              {hasColor ? (
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
+                    Color
+                  </p>
 
-          {/* COLOR SECTION */}
-          <div className="flex flex-col items-center gap-2 w-full">
-            <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
-              Color
-            </p>
+                  {/* COLOR BUTTONS */}
+                  <div className="flex gap-3 justify-center flex-wrap">
+                    {colors.map((color, idx) => {
+                      // Color-only products: out-of-stock colors can't be picked.
+                      const colorStock =
+                        variationType === "color" ? getStock(color.id, null) : 1;
+                      const isDisabled =
+                        variationType === "color" && colorStock <= 0;
+                      return (
+                        <button
+                          key={color.id}
+                          onClick={() => !isDisabled && onSelectColor(idx)}
+                          aria-label={`Select ${color.name}`}
+                          className={`
+                            relative
+                            w-7 h-7
+                            rounded-full
+                            border
+                            transition-all duration-300
+                            focus:outline-none
+                            ${
+                              selectedColorIdx === idx
+                                ? "border-black scale-110"
+                                : isDisabled
+                                  ? "border-black/5 opacity-40 cursor-not-allowed line-through"
+                                  : "border-black/15 hover:border-black/40"
+                            }
+                          `}
+                          style={{
+                            backgroundColor: color.hex,
+                          }}
+                        >
+                          {/* ACTIVE DOT */}
+                          {selectedColorIdx === idx && (
+                            <span className="absolute inset-0 flex items-center justify-center">
+                              <span className="w-2 h-2 rounded-full bg-white/80" />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-            {/* COLOR BUTTONS */}
-            <div className="flex gap-3 justify-center flex-wrap">
-              {colors.map((color, idx) => (
-                <button
-                  key={color.id}
-                  onClick={() => onSelectColor(idx)}
-                  aria-label={`Select ${color.name}`}
-                  className={`
-                    relative
-                    w-7 h-7
-                    rounded-full
-                    border
-                    transition-all duration-300
-                    focus:outline-none
-                    ${
-                      selectedColorIdx === idx
-                        ? "border-black scale-110"
-                        : "border-black/15 hover:border-black/40"
-                    }
-                  `}
-                  style={{
-                    backgroundColor: color.hex,
-                  }}
-                >
-                  {/* ACTIVE DOT */}
-                  {selectedColorIdx === idx && (
-                    <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="w-2 h-2 rounded-full bg-white/80" />
-                    </span>
-                  )}
-                </button>
-              ))}
+                  {/* SELECTED COLOR LABEL */}
+                  <p className="text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1">
+                    {selectedColor ? selectedColor.name : "No color selected"}
+                  </p>
+                </div>
+              ) : null}
+
+              {/* DIVIDER */}
+              <div className="w-full border-t border-black/10" />
+
+              {/* ERROR MESSAGE */}
+              <div
+                className={`
+                  text-[9px]
+                  tracking-[0.2em]
+                  uppercase
+                  text-red-500
+                  font-light
+                  transition-all duration-300
+                  ${
+                    showError
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 -translate-y-1 h-0"
+                  }
+                `}
+              >
+                {errorMessage}
+              </div>
+
+              {/* ADD TO CART BUTTON */}
+              {addToCartButton}
             </div>
-
-            {/* SELECTED COLOR LABEL */}
-            <p className="text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1">
-              {selectedColor ? selectedColor.name : "No color selected"}
-            </p>
           </div>
-
-          {/* DIVIDER */}
-          <div className="w-full border-t border-black/10" />
-
-          {/* ERROR MESSAGE */}
-          <div
-            className={`
-              text-[9px]
-              tracking-[0.2em]
-              uppercase
-              text-red-500
-              font-light
-              transition-all duration-300
-              ${
-                showError
-                  ? "opacity-100 translate-y-0"
-                  : "opacity-0 -translate-y-1 h-0"
-              }
-            `}
-          >
-            {isReady && currentStock <= 0
-              ? "This variant is out of stock"
-              : "Please select size and color"}
-          </div>
-
-          {/* ADD TO CART BUTTON */}
-          <button
-            onClick={handleAddToCart}
-            disabled={adding || isOutOfStock}
-            className={`
-              relative overflow-hidden
-              w-full h-11
-              border
-              flex items-center justify-center
-              text-[10px]
-              tracking-[0.28em]
-              uppercase
-              font-light
-              transition-all duration-300
-              active:scale-[0.98]
-              focus:outline-none
-
-              ${
-                isReady && currentStock > 0
-                  ? "border-black/20 hover:border-black/60 text-black"
-                  : "border-black/10 text-black/30"
-              }
-
-              ${
-                adding || added
-                  ? "bg-black text-white border-black"
-                  : "bg-transparent"
-              }
-            `}
-          >
-            {/* BUTTON TEXT */}
-            <span
-              className="transition-all duration-300"
-              style={{
-                transform: adding ? "translateY(-2px)" : "translateY(0px)",
-                opacity: adding ? 0.8 : 1,
-              }}
-            >
-              {adding ? "Adding..." : added ? "Added to Cart" : "Add to Cart"}
-            </span>
-
-            {/* LOADING LINE */}
-            {adding && (
-              <span
-                className="
-                  absolute bottom-0 left-0
-                  h-1px bg-white
-                "
-                style={{
-                  width: "100%",
-                  animation: "loading 0.7s linear",
-                }}
-              />
-            )}
-          </button>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

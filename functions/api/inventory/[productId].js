@@ -17,12 +17,17 @@ export async function onRequestGet(context) {
   try {
     await ensureSchema(env);
 
+    // Stock comes from the inventory table — the single source of truth for
+    // every variation mode (simple NULL/NULL rows, color-only, size-only,
+    // and color × size combinations).
     const inventory = await env.DB.prepare(
-      `SELECT pv.id, pv.product_id, pv.color_id, pv.size, pv.stock
-       FROM product_variants pv
-       LEFT JOIN products p ON p.id = pv.product_id
-       WHERE (pv.product_id = ? OR p.slug = ?)
-       ORDER BY pv.color_id, pv.size ASC;`,
+      `SELECT i.id, i.product_id, i.color_id, i.size_id,
+              s.name AS size, i.stock
+       FROM inventory i
+       LEFT JOIN sizes s ON s.id = i.size_id
+       LEFT JOIN products p ON p.id = i.product_id
+       WHERE (i.product_id = ? OR p.slug = ?)
+       ORDER BY i.color_id, i.size_id;`,
     )
       .bind(productId, productId)
       .all();

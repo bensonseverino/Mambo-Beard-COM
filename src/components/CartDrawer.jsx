@@ -6,6 +6,23 @@ import { DELIVERY_ZONES, getDeliveryFee } from "../utils/deliveryFee";
 import { createCheckout } from "../services/api";
 import { buildWhatsAppUrl } from "../utils/whatsappMessage";
 
+// The variation dimensions a cart item needs before checkout. Simple
+// products need none of them.
+const missingVariation = (item) => {
+  const type = item.variationType || "color_size";
+  if (type === "none") return !item.productId ? "product" : null;
+  if (type === "color") return item.selectedColorId ? null : "color";
+  if (type === "size") return item.selectedSize ? null : "size";
+  return item.selectedColorId && item.selectedSize ? null : "color or size";
+};
+
+// Human-readable title, e.g. "Hoodie (Black, XXL)", "T-Shirt (XXL)",
+// "Cap (Black)", or "Tote Bag" — never "(undefined, undefined)".
+const itemTitle = (item) => {
+  const parts = [item.selectedColor, item.selectedSize].filter(Boolean);
+  return parts.length ? `${item.name} (${parts.join(", ")})` : item.name;
+};
+
 export default function CartDrawer({ open, toggle }) {
   const { cart, removeFromCart, clearCart } = useCart();
 
@@ -42,18 +59,14 @@ export default function CartDrawer({ open, toggle }) {
       return alert("Your cart is empty");
     }
 
-    // Every cart item must have a size and color selected.
-    const missingOptions = cart.find(
-      (item) =>
-        !item.productId ||
-        !item.selectedSize ||
-        !item.selectedColor ||
-        !item.selectedColorId,
-    );
-    if (missingOptions) {
-      return alert(
-        `${missingOptions.name} is missing a size or color selection.`,
-      );
+    // Every cart item must have the variations its product actually uses.
+    for (const item of cart) {
+      const missing = missingVariation(item);
+      if (missing) {
+        return alert(
+          `${item.name} is missing a ${missing} selection.`,
+        );
+      }
     }
 
     const finalLocation = zone === "Other" ? customLocation : zone;
@@ -64,13 +77,22 @@ export default function CartDrawer({ open, toggle }) {
       email,
       zone,
       customLocation: finalLocation,
-      cart: cart.map((item) => ({
-        productId: item.productId,
-        colorId: item.selectedColorId,
-        size: item.selectedSize,
-        quantity: item.quantity,
-        price: item.price,
-      })),
+      cart: cart.map((item) => {
+        const type = item.variationType || "color_size";
+        const line = {
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+        };
+        if (type === "color" || type === "color_size") {
+          line.colorId = item.selectedColorId;
+        }
+        if (type === "size" || type === "color_size") {
+          line.size = item.selectedSize;
+          line.sizeId = item.selectedSizeId || undefined;
+        }
+        return line;
+      }),
     };
 
     // Open a blank window now so the browser keeps the user gesture; it is
@@ -130,10 +152,7 @@ export default function CartDrawer({ open, toggle }) {
             className="w-16 h-16 object-cover rounded"
           />
           <div className="flex-1">
-            <p className="font-medium">
-              {item.name} ({item.selectedSize}
-              {item.selectedColor ? `, ${item.selectedColor}` : ""})
-            </p>
+            <p className="font-medium">{itemTitle(item)}</p>
             <p className="text-gray-600">KES {item.price}</p>
           </div>
           <button

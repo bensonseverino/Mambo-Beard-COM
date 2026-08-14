@@ -149,10 +149,15 @@ export const productJsonLd = (product, slug, siteUrl, r2PublicUrl) => {
     images.push(pickProductImageMeta(product, r2PublicUrl, siteUrl).url);
   }
 
-  const totalStock = (product.variants || []).reduce(
-    (sum, variant) => sum + Number(variant.stock || 0),
-    0,
-  );
+  // Simple products carry a single stock figure; everything else sums the
+  // variant rows (color-only, size-only, color_size).
+  const totalStock =
+    product.variationType === "none"
+      ? Number(product.stock) || 0
+      : (product.variants || []).reduce(
+          (sum, variant) => sum + Number(variant.stock || 0),
+          0,
+        );
 
   const schema = {
     "@context": "https://schema.org",

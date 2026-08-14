@@ -1,5 +1,7 @@
 import { ensureSchema } from "../lib/schema.js";
 
+const VARIATION_TYPES = ["none", "color", "size", "color_size"];
+
 export async function onRequestGet(context) {
   const { env, request } = context;
 
@@ -59,19 +61,11 @@ export async function onRequestGet(context) {
         p.price,
         p.category,
         p.featured,
-        c.id AS color_id,
-        c.name AS color_name,
-        c.hex AS color_hex,
-        c.sort_order AS color_sort,
-        pi.path AS thumbnail
+        p.product_type,
+        p.variation_type
       FROM products p
-      LEFT JOIN product_colors c ON c.product_id = p.id
-      LEFT JOIN product_images pi
-        ON pi.product_id = p.id
-        AND pi.color_id = c.id
-        AND pi.sort_order = 1
       WHERE ${whereClause}
-      ORDER BY ${orderBy}, c.sort_order ASC;
+      ORDER BY ${orderBy};
     `;
 
     const stmt = env.DB.prepare(query);
@@ -79,45 +73,81 @@ export async function onRequestGet(context) {
       ? await stmt.bind(...bindings).all()
       : await stmt.all();
 
-    const productsById = new Map();
+    const products = (result.results || []).map((row) => ({
+      id: row.product_id,
+      slug: row.slug,
+      name: row.name,
+      description: row.description,
+      price: row.price,
+      category: row.category,
+      featured: row.featured === 1,
+      variationType: VARIATION_TYPES.includes(row.variation_type)
+        ? row.variation_type
+        : row.product_type === "simple"
+          ? "none"
+          : "color_size",
+      colors: [],
+      thumbnail: null,
+    }));
 
-    for (const row of result.results) {
-      if (!row.product_id) continue;
+    if (!products.length) {
+      return new Response(
+        JSON.stringify({ products: [] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
-      if (!productsById.has(row.product_id)) {
-        productsById.set(row.product_id, {
-          id: row.product_id,
-          slug: row.slug,
-          name: row.name,
-          description: row.description,
-          price: row.price,
-          category: row.category,
-          featured: row.featured === 1,
-          thumbnail: row.thumbnail || null,
-          colors: [],
-        });
-      }
+    const productIds = products.map((product) => product.id);
+    const placeholders = productIds.map(() => "?").join(",");
 
-      const product = productsById.get(row.product_id);
+    // Colors — only surfaced for color-bearing products.
+    const colorsResult = await env.DB.prepare(
+      `SELECT id, product_id, name, hex
+       FROM product_colors
+       WHERE product_id IN (${placeholders})
+       ORDER BY sort_order ASC`,
+    )
+      .bind(...productIds)
+      .all();
 
-      if (
-        row.color_id &&
-        !product.colors.some((c) => c.id === row.color_id)
-      ) {
-        product.colors.push({
-          id: row.color_id,
-          name: row.color_name,
-          hex: row.color_hex,
-        });
-      }
+    const colorsByProduct = new Map();
+    for (const color of colorsResult.results || []) {
+      const existing = colorsByProduct.get(color.product_id) || [];
+      existing.push({ id: color.id, name: color.name, hex: color.hex });
+      colorsByProduct.set(color.product_id, existing);
+    }
 
-      if (!product.thumbnail && row.thumbnail) {
-        product.thumbnail = row.thumbnail;
+    // Thumbnail — the product's primary image, or the first image in sort
+    // order. Works for per-color images AND color-less gallery images.
+    const imagesResult = await env.DB.prepare(
+      `SELECT product_id, path, is_primary, sort_order
+       FROM product_images
+       WHERE product_id IN (${placeholders})
+       ORDER BY is_primary DESC, sort_order ASC, uploaded_at DESC`,
+    )
+      .bind(...productIds)
+      .all();
+
+    const thumbnailByProduct = new Map();
+    for (const image of imagesResult.results || []) {
+      if (!thumbnailByProduct.has(image.product_id)) {
+        thumbnailByProduct.set(image.product_id, image.path);
       }
     }
 
+    for (const product of products) {
+      const hasColor =
+        product.variationType === "color" ||
+        product.variationType === "color_size";
+      product.colors = hasColor ? colorsByProduct.get(product.id) || [] : [];
+      product.thumbnail = thumbnailByProduct.get(product.id) || null;
+    }
+
     return new Response(
-      JSON.stringify({ products: Array.from(productsById.values()) }),
+      JSON.stringify({ products }),
       {
         status: 200,
         headers: { "Content-Type": "application/json" },

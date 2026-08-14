@@ -59,9 +59,11 @@ test("GET /api/products/:slug returns product with images, sizes, and variants",
   assert.equal(response.status, 200);
   const { product } = await response.json();
   assert.equal(product.id, "prod-1");
+  assert.equal(product.variationType, "color_size");
   assert.equal(product.colors[0].name, "Amber");
   assert.equal(product.images[0].path, "products/classic-beard-oil/amber/front.webp");
-  assert.ok(product.sizes.includes("M"));
+  // Sizes are objects { id, name } in canonical order — not bare strings.
+  assert.ok(product.sizes.some((size) => size.name === "M"));
   assert.equal(product.variants[0].stock, 5);
 });
 

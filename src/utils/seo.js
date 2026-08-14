@@ -124,10 +124,17 @@ export const productJsonLd = (product, slug) => {
   ];
   if (!images.length) images.push(pickProductImage(product));
 
-  const totalStock = (product.variants || []).reduce(
-    (sum, variant) => sum + Number(variant.stock || 0),
-    0,
-  );
+  // Simple products (variation_type "none") carry one product-level stock
+  // figure; everything else sums the variant rows (color-only, size-only,
+  // color_size). Mirrors the edge middleware so client and server JSON-LD
+  // always agree.
+  const totalStock =
+    product.variationType === "none"
+      ? Number(product.stock) || 0
+      : (product.variants || []).reduce(
+          (sum, variant) => sum + Number(variant.stock || 0),
+          0,
+        );
 
   return {
     "@context": "https://schema.org",

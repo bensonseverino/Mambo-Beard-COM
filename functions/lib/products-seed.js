@@ -3,8 +3,8 @@ export const seedProducts = async (db) => {
 
   await db
     .prepare(
-      `INSERT INTO products (id, name, slug, description, price, category, featured, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO products (id, name, slug, description, price, category, featured, active, variation_type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       "prod-1",
@@ -15,6 +15,7 @@ export const seedProducts = async (db) => {
       "Care",
       1,
       1,
+      "color_size",
       now,
       now,
       "prod-2",
@@ -25,6 +26,7 @@ export const seedProducts = async (db) => {
       "Tools",
       0,
       1,
+      "color",
       now,
       now,
     )

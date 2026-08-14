@@ -92,8 +92,10 @@ test("product page mirrors the client SEO: title, OG image priority, breadcrumbs
 });
 
 test("availability flips to OutOfStock when variant stock hits zero", async () => {
+  // The inventory table is the single source of stock; the product_variants
+  // mirror is only consulted when no inventory rows exist.
   await db
-    .prepare("UPDATE product_variants SET stock = 0 WHERE product_id = 'prod-1'")
+    .prepare("UPDATE inventory SET stock = 0 WHERE product_id = 'prod-1'")
     .run();
   const seo = await buildSeoForPath("/product/classic-beard-oil", ENV, "https://shop.example.com");
   const productSchema = seo.jsonLd.find((entry) => entry["@type"] === "Product");

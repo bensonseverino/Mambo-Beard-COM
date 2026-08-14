@@ -17,6 +17,8 @@ export const SCHEMA_STATEMENTS = [
     category TEXT,
     featured INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
+    product_type TEXT NOT NULL DEFAULT 'variant',
+    variation_type TEXT NOT NULL DEFAULT 'none',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -33,7 +35,7 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS product_images (
     id TEXT PRIMARY KEY,
     product_id TEXT NOT NULL,
-    color_id TEXT NOT NULL,
+    color_id TEXT,
     path TEXT NOT NULL,
     type TEXT NOT NULL,
     file_name TEXT NOT NULL,
@@ -41,6 +43,7 @@ export const SCHEMA_STATEMENTS = [
     uploaded_at TEXT NOT NULL,
     is_primary INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 1,
+    -- color_id is NULL for simple-product gallery images.
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     FOREIGN KEY (color_id) REFERENCES product_colors(id) ON DELETE CASCADE
   )`,
@@ -60,9 +63,10 @@ export const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS inventory (
     id TEXT PRIMARY KEY,
     product_id TEXT NOT NULL,
-    color_id TEXT NOT NULL,
-    size_id TEXT NOT NULL,
+    color_id TEXT,
+    size_id TEXT,
     stock INTEGER NOT NULL,
+    -- color_id / size_id are NULL for simple products (one row per product).
     FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
     FOREIGN KEY(color_id) REFERENCES product_colors(id) ON DELETE CASCADE,
     FOREIGN KEY(size_id) REFERENCES sizes(id) ON DELETE CASCADE
@@ -84,14 +88,17 @@ export const SCHEMA_STATEMENTS = [
     id TEXT PRIMARY KEY,
     order_id TEXT NOT NULL,
     product_id TEXT NOT NULL,
-    color_id TEXT NOT NULL,
+    color_id TEXT,
     size TEXT,
     size_id TEXT,
     quantity INTEGER NOT NULL,
     price INTEGER NOT NULL,
     FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
-    FOREIGN KEY(color_id) REFERENCES product_colors(id) ON DELETE CASCADE,
+    -- No ON DELETE CASCADE on product_id/color_id: products are soft-deleted
+    -- (active = 0) so order history must survive deletes and edits. color_id
+    -- is NULL for simple-product order lines.
+    FOREIGN KEY(product_id) REFERENCES products(id),
+    FOREIGN KEY(color_id) REFERENCES product_colors(id),
     FOREIGN KEY(size_id) REFERENCES sizes(id) ON DELETE CASCADE
   )`,
   `CREATE TABLE IF NOT EXISTS customers (
@@ -106,13 +113,35 @@ export const SCHEMA_STATEMENTS = [
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
-  `CREATE TABLE IF NOT EXISTS subscribers (
+  // One stock row per variation combination. NULL color_id/size_id are
+  // coalesced to '' so simple (NULL/NULL), color-only (color/NULL), size-only
+  // (NULL/size), and color_size rows each have exactly one row per combo.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_variation
+    ON inventory (product_id, COALESCE(color_id, ''), COALESCE(size_id, ''))`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone)`,
+  `CREATE TABLE IF NOT EXISTS admins (
     id TEXT PRIMARY KEY,
-    phone TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone)`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_subscribers_phone ON subscribers (phone)`,
+  `CREATE TABLE IF NOT EXISTS subscribers (
+    id TEXT PRIMARY KEY,
+    phone TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'active',
+    source TEXT DEFAULT 'website'
+  )`,
+  // Rolling per-IP, per-hour counters for the subscription popup. The id IS
+  // the composite key `ip|YYYY-MM-DD-HH`, so PRIMARY KEY enforces uniqueness
+  // without needing a separate unique index in the runtime bootstrap.
+  `CREATE TABLE IF NOT EXISTS rate_limits (
+    id TEXT PRIMARY KEY,
+    ip TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0
+  )`,
 ];
 
 export const SIZE_SEED_STATEMENT = `INSERT OR IGNORE INTO sizes (id, name) VALUES
@@ -120,7 +149,24 @@ export const SIZE_SEED_STATEMENT = `INSERT OR IGNORE INTO sizes (id, name) VALUE
   ('size-s', 'S'),
   ('size-m', 'M'),
   ('size-l', 'L'),
-  ('size-xl', 'XL')`;
+  ('size-xl', 'XL'),
+  ('size-xxl', 'XXL')`;
+
+/**
+ * Add a column to an existing table when it is missing (idempotent).
+ * CREATE TABLE IF NOT EXISTS cannot add columns, so databases created before
+ * the variation system (or where admin migrations never ran) get the new
+ * columns here. Column/table names are internal constants — never user input.
+ */
+export const ensureColumn = async (db, table, column, definition) => {
+  const info = await db.prepare(`PRAGMA table_info(${table})`).all();
+  const exists = (info.results || []).some((entry) => entry.name === column);
+  if (!exists) {
+    await db
+      .prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+      .run();
+  }
+};
 
 /**
  * Create every table (idempotent) and seed the standard sizes.
@@ -138,15 +184,28 @@ export const ensureSchema = async (env) => {
   statements.push(db.prepare(SIZE_SEED_STATEMENT));
   await db.batch(statements);
 
-  // A pre-existing table with duplicate values would make its unique index
-  // fail to build. Catch each one so a single dirty table can't take down
-  // every handler that bootstraps the schema.
+  // Legacy databases: products tables created before the variation system
+  // lack product_type / variation_type. Backfill them so reads never hit
+  // "no such column" even where the admin migrations never ran.
+  await ensureColumn(
+    db,
+    "products",
+    "product_type",
+    "TEXT NOT NULL DEFAULT 'variant'",
+  );
+  await ensureColumn(db, "products", "variation_type", "TEXT NOT NULL DEFAULT 'none'");
+
+  // Unique indexes can fail on pre-existing dirty data (e.g. duplicate
+  // customer phones or duplicate inventory combinations). Catch each one so
+  // a single dirty table can't take down every handler that bootstraps the
+  // schema.
   for (const indexStatement of indexStatements) {
     try {
       await db.prepare(indexStatement).run();
     } catch (error) {
       console.warn(
         "[schema] Could not create unique index:",
+        indexStatement.slice(0, 80),
         error?.message || error,
       );
     }
