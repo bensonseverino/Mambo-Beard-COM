@@ -477,22 +477,6 @@ function ProductInfo({
             }}
           >
             <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
-              {/* SIZE SECTION — only when the product supports sizes */}
-              {hasSize ? (
-                <div className="flex flex-col items-center gap-3">
-                  <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
-                    Select Size
-                  </p>
-
-                  <SizeSelector
-                    sizes={sizes}
-                    selected={selectedSize}
-                    onSelect={setSelectedSize}
-                    getStockFor={getStockForSize}
-                  />
-                </div>
-              ) : null}
-
               {/* COLOR SECTION — only when the product supports colors */}
               {hasColor ? (
                 <div className="flex flex-col items-center gap-2 w-full">
@@ -547,6 +531,22 @@ function ProductInfo({
                   <p className="text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1">
                     {selectedColor ? selectedColor.name : "No color selected"}
                   </p>
+                </div>
+              ) : null}
+
+              {/* SIZE SECTION — only when the product supports sizes */}
+              {hasSize ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
+                    Select Size
+                  </p>
+
+                  <SizeSelector
+                    sizes={sizes}
+                    selected={selectedSize}
+                    onSelect={setSelectedSize}
+                    getStockFor={getStockForSize}
+                  />
                 </div>
               ) : null}
 
