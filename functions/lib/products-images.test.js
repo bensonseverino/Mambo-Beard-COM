@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Miniflare } from "miniflare";
-import { onRequestGet as imagesHandler } from "../products/[...path].js";
+import { onRequestGet as imagesHandler } from "../products/[[path]].js";
 
 let mf;
 let bucket;

@@ -5,7 +5,7 @@
 // them to R2 under products/.resized/<width>/<key>.
 //
 // The storefront's srcset (src/services/api.js buildImageSrcSet) requests
-// these variants through the image proxy (functions/products/[...path].js),
+// these variants through the image proxy (functions/products/[[path]].js),
 // which serves a variant when it exists and falls back to the original
 // otherwise. Run this once (and again after new uploads) so mobile devices
 // stop downloading full-resolution photos.
