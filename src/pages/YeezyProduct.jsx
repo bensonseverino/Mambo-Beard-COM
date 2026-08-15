@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import useProduct from "../hooks/useProduct";
 import useProducts from "../hooks/useProducts";
 import { useCart } from "../context/CartContext";
-import { buildImageUrl } from "../services/api";
+import { buildImageUrl, buildImageSrcSet } from "../services/api";
 import SEO from "../components/SEO";
 import {
   DEFAULT_TITLE,
@@ -133,8 +133,10 @@ function ProductGallery({ images, productName }) {
         {/* PRODUCT IMAGE */}
         <div className="relative w-[70vw] max-w-97.5 aspect-3/4 overflow-hidden">
           <img
-            key={images[current]}
-            src={images[current]}
+            key={images[current].src}
+            src={images[current].src}
+            srcSet={images[current].srcSet || undefined}
+            sizes="(min-width: 768px) 390px, 70vw"
             alt={
               productName
                 ? `${productName} — image ${current + 1}`
@@ -324,7 +326,7 @@ function ProductInfo({
 
     setAdding(true);
 
-    const firstImage = galleryImages.length > 0 ? galleryImages[0] : "";
+    const firstImage = galleryImages.length > 0 ? galleryImages[0].src : "";
 
     const item = buildCartItem({
       product,
@@ -595,6 +597,9 @@ function TimelineItem({ product }) {
   const imageSrc = product.thumbnail
     ? buildImageUrl(product.thumbnail)
     : "";
+  const srcSet = product.thumbnail
+    ? buildImageSrcSet(product.thumbnail)
+    : "";
 
   return (
     <Link
@@ -605,6 +610,8 @@ function TimelineItem({ product }) {
         {imageSrc && (
           <img
             src={imageSrc}
+            srcSet={srcSet || undefined}
+            sizes="80px"
             alt={product.name}
             className="h-full w-full object-cover"
             draggable={false}
@@ -721,7 +728,12 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
 
     // Sort by sortOrder
     filtered = [...filtered].sort((a, b) => a.sortOrder - b.sortOrder);
-    return filtered.map((img) => buildImageUrl(img.path));
+    // src is the original (used as the srcset fallback); srcSet offers
+    // resized ?w= variants the proxy serves when they exist.
+    return filtered.map((img) => ({
+      src: buildImageUrl(img.path),
+      srcSet: buildImageSrcSet(img.path),
+    }));
   }, [product, selectedColorIdx]);
 
   // Backend-driven SEO metadata (memoized — no Helmet re-renders on state
@@ -734,7 +746,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
       description: productDescription(product),
       image: ogImage,
       imageAlt: productImageAlt(product, image),
-      heroImage: galleryImages[0] || "",
       jsonLd: [
         productJsonLd(product, slug),
         breadcrumbJsonLd([
@@ -743,7 +754,7 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         ]),
       ],
     };
-  }, [product, slug, galleryImages]);
+  }, [product, slug]);
 
   const productPath = `/product/${slug}`;
 
@@ -803,12 +814,7 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         image={seo.image}
         imageAlt={seo.imageAlt}
         jsonLd={seo.jsonLd}
-      >
-        {/* Hero image preload — first gallery image, only when one exists */}
-        {seo.heroImage && (
-          <link rel="preload" as="image" href={seo.heroImage} />
-        )}
-      </SEO>
+      />
 
       <div
         className="

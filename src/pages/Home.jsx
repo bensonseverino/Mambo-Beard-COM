@@ -51,7 +51,8 @@ function VerticalScrollGallery({ items }) {
           key={`${product.id}-${Math.floor(index / items.length)}`}
           className="w-full"
         >
-          <ProductCard product={product} />
+          {/* First visible cards load immediately for a fast first paint */}
+          <ProductCard product={product} eager={index < 2} />
         </div>
       ))}
     </div>
@@ -120,8 +121,14 @@ export default function Home({ zoomLevel }) {
                 GRID_CLASSES[zoomLevel]
               } ${isMobileCarousel ? "hidden md:grid" : ""}`}
             >
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+              {products.map((product, index) => (
+                // First grid row (desktop: 6 columns) is above the fold —
+                // load eagerly so the LCP image isn't blocked on lazy loading.
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  eager={index < 6}
+                />
               ))}
             </div>
           </>

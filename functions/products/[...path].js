@@ -7,6 +7,13 @@
 // URLs fell through to the SPA shell (200 with text/html), so image links
 // were broken for Google, Meta, and social crawlers.
 //
+// Responsive images: a `?w=NNN` query requests a resized variant. Variants
+// are stored alongside originals under products/.resized/<width>/<key> and,
+// when present, are served instead of the original. If no variant exists the
+// original is served untouched — the srcset on the frontend keeps working
+// and pages never break. (Generating variants is an ingestion-time concern:
+// pre-generate them when uploading, or with a one-off worker/script.)
+//
 // Lookup tries the key with the "products/" prefix first, then the raw path,
 // so buckets storing either layout work.
 
@@ -26,26 +33,66 @@ const contentTypeFor = (key, httpMetadata) => {
   return EXT_TYPES[ext] || "application/octet-stream";
 };
 
+// Resolve the original R2 key for a URL path (with or without the
+// "products/" prefix). Returns null when neither layout exists.
+const findOriginalKey = async (bucket, key) => {
+  let object = await bucket.get(`products/${key}`);
+  if (object) return `products/${key}`;
+  object = await bucket.get(key);
+  if (object) return key;
+  return null;
+};
+
 export async function onRequestGet(context) {
-  const { env, params } = context;
+  const { env, params, request } = context;
 
   const key = Array.isArray(params.path) ? params.path.join("/") : params.path;
   if (!key) {
     return new Response("Not Found", { status: 404 });
   }
 
-  let object = await env?.PRODUCTS?.get(`products/${key}`);
-  if (!object) {
-    object = await env?.PRODUCTS?.get(key);
-  }
-  if (!object) {
+  const bucket = env?.PRODUCTS;
+  if (!bucket) {
     return new Response("Not Found", { status: 404 });
   }
 
+  // ?w=NNN → serve the stored variant at that width when one exists.
+  let width = null;
+  if (request) {
+    const widthParam = new URL(request.url).searchParams.get("w");
+    if (widthParam && /^\d+$/.test(widthParam)) {
+      width = Math.min(Math.max(parseInt(widthParam, 10), 16), 2048);
+    }
+  }
+
+  const originalKey = await findOriginalKey(bucket, key);
+  if (!originalKey) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  let object = null;
+  let servedKey = originalKey;
+  if (width) {
+    const variantKey = `products/.resized/${width}/${originalKey}`;
+    object = await bucket.get(variantKey);
+    if (object) servedKey = variantKey;
+  }
+  if (!object) {
+    object = await bucket.get(originalKey);
+  }
+
+  // Variants are immutable per width, so a long edge cache is safe; the
+  // ?w= query is part of the URL, so each width caches independently.
+  // Originals keep a shorter TTL in case an admin ever overwrites a path.
+  const cacheControl =
+    servedKey !== originalKey
+      ? "public, max-age=31536000, s-maxage=31536000, immutable"
+      : "public, max-age=86400, s-maxage=86400";
+
   return new Response(object.body, {
     headers: {
-      "Content-Type": contentTypeFor(key, object.httpMetadata),
-      "Cache-Control": "public, max-age=86400, s-maxage=86400",
+      "Content-Type": contentTypeFor(servedKey, object.httpMetadata),
+      "Cache-Control": cacheControl,
     },
   });
 }

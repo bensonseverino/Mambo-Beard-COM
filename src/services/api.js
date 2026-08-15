@@ -9,10 +9,15 @@ const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || "";
  * Constructs a full image URL from an R2 object path.
  * Works with any public R2 URL or custom CDN domain.
  *
+ * When `width` is provided and the URL is served by the same-origin R2 proxy
+ * (the default when no CDN is configured), a `?w=` resized-variant query is
+ * appended. External CDN URLs are returned untouched.
+ *
  * @param {string} path — R2 object key, e.g. "products/distorted-future/black/front.webp"
- * @returns {string} Full URL, e.g. "https://cdn.mambobeard.store/products/distorted-future/black/front.webp"
+ * @param {number} [width] — request a resized variant of this width
+ * @returns {string} Full URL, e.g. "https://mambobeard.store/products/distorted-future/black/front.webp?w=640"
  */
-export const buildImageUrl = (path) => {
+export const buildImageUrl = (path, width) => {
   if (!path) return "";
   // If the path is already a full URL, return as-is
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -21,7 +26,28 @@ export const buildImageUrl = (path) => {
   const baseUrl = R2_PUBLIC_URL.endsWith("/")
     ? R2_PUBLIC_URL.slice(0, -1)
     : R2_PUBLIC_URL;
-  return `${baseUrl}/${cleanPath}`;
+  const url = `${baseUrl}/${cleanPath}`;
+  return width ? `${url}?w=${width}` : url;
+};
+
+/** Widths offered to the browser for responsive product images. */
+export const IMAGE_WIDTHS = [240, 400, 640, 960, 1280];
+
+/**
+ * Build a `srcset` string of `?w=` variants for a product image path.
+ *
+ * Only same-origin (R2 proxy) URLs get variants — external CDN URLs return
+ * "" so the browser falls back to the plain `src` (no resizing possible).
+ *
+ * @param {string} path — R2 object key or absolute image URL
+ * @param {number[]} [widths] — widths to offer, in ascending order
+ * @returns {string} srcset string, or "" when no variants apply
+ */
+export const buildImageSrcSet = (path, widths = IMAGE_WIDTHS) => {
+  if (!path) return "";
+  if (/^https?:\/\//.test(path)) return "";
+  const src = buildImageUrl(path);
+  return widths.map((w) => `${src}?w=${w} ${w}w`).join(", ");
 };
 
 // ─────────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import { useMemo, useState, useEffect, useCallback, lazy, Suspense } from "react
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import Home from "./pages/Home";
-import YeezyProduct from "./pages/YeezyProduct";
 import Header from "./components/Header";
 import CartDrawer from "./components/CartDrawer";
 import VipPopup from "./components/VipPopup";
@@ -18,9 +17,12 @@ import {
 } from "./utils/seo";
 import { trackPageView } from "./utils/pixel";
 
-// Rarely-visited static pages are code-split (loaded on demand).
+// Rarely-visited pages are code-split (loaded on demand) so the homepage
+// first paint doesn't pay for their JS. The product page is the largest one;
+// Terms/Privacy are small but almost never the landing route.
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const YeezyProduct = lazy(() => import("./pages/YeezyProduct"));
 
 // Fires a Meta Pixel PageView for the initial view and every client-side
 // route change (the static PageView in index.html was removed to avoid

@@ -72,3 +72,76 @@ test("returns 404 for missing images", async () => {
 
   assert.equal(response.status, 404);
 });
+
+test("serves a stored ?w= variant when one exists", async () => {
+  await bucket.put(
+    "products/ts-01/black/front/abc.webp",
+    new Uint8Array([1, 2, 3]),
+  );
+  await bucket.put(
+    "products/.resized/320/products/ts-01/black/front/abc.webp",
+    new Uint8Array([9, 9, 9]),
+    { httpMetadata: { contentType: "image/webp" } },
+  );
+
+  const response = await imagesHandler({
+    env: { PRODUCTS: bucket },
+    params: { path: ["ts-01", "black", "front", "abc.webp"] },
+    request: new Request(
+      "https://mambobeard.store/products/ts-01/black/front/abc.webp?w=320",
+    ),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/webp");
+  assert.match(response.headers.get("cache-control"), /immutable/);
+  assert.deepEqual(
+    [...new Uint8Array(await response.arrayBuffer())],
+    [9, 9, 9],
+  );
+});
+
+test("falls back to the original when no ?w= variant exists", async () => {
+  await bucket.put(
+    "products/ts-01/black/front/abc.webp",
+    new Uint8Array([1, 2, 3]),
+    { httpMetadata: { contentType: "image/webp" } },
+  );
+
+  const response = await imagesHandler({
+    env: { PRODUCTS: bucket },
+    params: { path: ["ts-01", "black", "front", "abc.webp"] },
+    request: new Request(
+      "https://mambobeard.store/products/ts-01/black/front/abc.webp?w=640",
+    ),
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("cache-control"), /max-age=86400/);
+  assert.deepEqual(
+    [...new Uint8Array(await response.arrayBuffer())],
+    [1, 2, 3],
+  );
+});
+
+test("ignores invalid ?w= values and serves the original", async () => {
+  await bucket.put(
+    "products/ts-01/black/front/abc.webp",
+    new Uint8Array([5]),
+    { httpMetadata: { contentType: "image/webp" } },
+  );
+
+  const response = await imagesHandler({
+    env: { PRODUCTS: bucket },
+    params: { path: ["ts-01", "black", "front", "abc.webp"] },
+    request: new Request(
+      "https://mambobeard.store/products/ts-01/black/front/abc.webp?w=abc",
+    ),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    [...new Uint8Array(await response.arrayBuffer())],
+    [5],
+  );
+});

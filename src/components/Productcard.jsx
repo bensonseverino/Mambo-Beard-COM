@@ -1,24 +1,29 @@
 // components/ProductCard.jsx
 import { Link } from "react-router-dom";
-import { buildImageUrl } from "../services/api";
+import { buildImageUrl, buildImageSrcSet } from "../services/api";
 import { BRAND } from "../utils/seo";
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, eager = false }) {
   // Use thumbnail path from API, construct full R2 URL
-  const imageSrc = product.thumbnail
-    ? buildImageUrl(product.thumbnail)
+  const thumbPath = product.thumbnail
+    ? product.thumbnail
     : Array.isArray(product.image)
       ? product.image[0]
       : product.image || "";
+  const imageSrc = buildImageUrl(thumbPath);
+  const srcSet = buildImageSrcSet(thumbPath);
 
   return (
     <div className="text-center">
       <Link to={`/product/${product.slug || product.id}`} state={{ fromHome: true }}>
         <img
           src={imageSrc}
+          srcSet={srcSet || undefined}
+          sizes="(min-width: 768px) 25vw, 50vw"
           alt={`${BRAND} ${product.name}`}
           className="w-full aspect-3/4 object-cover bg-[#f5fffa]"
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : "auto"}
           decoding="async"
         />
       </Link>
