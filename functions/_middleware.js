@@ -26,6 +26,7 @@ const isPageRequest = (request, url) => {
   const path = url.pathname;
   if (path === "/api" || path.startsWith("/api/")) return false;
   if (path === "/sitemap.xml" || path === "/robots.txt") return false;
+  if (path === "/feeds" || path.startsWith("/feeds/")) return false; // XML product feed
   if (path.startsWith("/_")) return false; // _worker.js and friends
   if (STATIC_FILE.test(path)) return false;
   return true;
