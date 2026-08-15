@@ -17,6 +17,7 @@ import {
   breadcrumbJsonLd,
 } from "../utils/seo";
 import { buildCartItem } from "../services/cart";
+import { trackAddToCart } from "../utils/pixel";
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE CAROUSEL CONTROLS
@@ -325,17 +326,25 @@ function ProductInfo({
 
     const firstImage = galleryImages.length > 0 ? galleryImages[0] : "";
 
-    addToCart(
-      buildCartItem({
-        product,
-        variationType,
-        selectedColor: selectedColor ? selectedColor.name : null,
-        selectedColorId: selectedColor ? selectedColor.id : null,
-        selectedSize: selectedSize ? selectedSize.name : null,
-        selectedSizeId: selectedSize ? selectedSize.id : null,
-        image: firstImage,
-      }),
-    );
+    const item = buildCartItem({
+      product,
+      variationType,
+      selectedColor: selectedColor ? selectedColor.name : null,
+      selectedColorId: selectedColor ? selectedColor.id : null,
+      selectedSize: selectedSize ? selectedSize.name : null,
+      selectedSizeId: selectedSize ? selectedSize.id : null,
+      image: firstImage,
+    });
+    addToCart(item);
+
+    // Meta Pixel — content_ids match the product feed's <g:id> so the event
+    // attaches to the catalog item.
+    trackAddToCart({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+    });
 
     setTimeout(() => {
       setAdding(false);

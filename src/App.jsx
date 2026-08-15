@@ -1,7 +1,7 @@
 // App.jsx
 
 import { useMemo, useState, useEffect, useCallback, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import Home from "./pages/Home";
 import YeezyProduct from "./pages/YeezyProduct";
@@ -16,10 +16,22 @@ import {
   organizationJsonLd,
   websiteJsonLd,
 } from "./utils/seo";
+import { trackPageView } from "./utils/pixel";
 
 // Rarely-visited static pages are code-split (loaded on demand).
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+
+// Fires a Meta Pixel PageView for the initial view and every client-side
+// route change (the static PageView in index.html was removed to avoid
+// double-counting the first page).
+function PageViewTracker() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    trackPageView(pathname);
+  }, [pathname]);
+  return null;
+}
 
 // Global defaults + Organization/WebSite structured data. Rendered before
 // the routes so page-level <SEO> (mounted later) wins for duplicates.
@@ -65,6 +77,7 @@ function App() {
     <HelmetProvider>
       <CartProvider>
         <BrowserRouter>
+          <PageViewTracker />
           <GlobalSEO />
 
           <Header

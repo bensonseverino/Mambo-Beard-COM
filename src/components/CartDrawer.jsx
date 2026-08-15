@@ -5,6 +5,7 @@ import { useCart } from "../context/CartContext";
 import { DELIVERY_ZONES, getDeliveryFee } from "../utils/deliveryFee";
 import { createCheckout } from "../services/api";
 import { buildWhatsAppUrl } from "../utils/whatsappMessage";
+import { trackPurchase } from "../utils/pixel";
 
 // The variation dimensions a cart item needs before checkout. Simple
 // products need none of them.
@@ -122,6 +123,17 @@ export default function CartDrawer({ open, toggle }) {
         // Popup was blocked — send the customer to WhatsApp in this tab.
         window.location.href = whatsappUrl;
       }
+
+      // Meta Pixel Purchase — order confirmed, so this is the source of
+      // truth for revenue. content_ids match the feed's <g:id> values.
+      trackPurchase({
+        value: result.total ?? total,
+        contents: cart.map((item) => ({
+          id: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      });
       clearCart();
     } catch (error) {
       if (popup && !popup.closed) popup.close();
