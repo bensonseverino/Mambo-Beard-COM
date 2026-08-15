@@ -5,7 +5,7 @@ import { isValidKenyanPhone } from "../services/subscribers";
 
 const FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-const CLOSE_ANIMATION_MS = 350;
+const CLOSE_ANIMATION_MS = 250;
 
 export default function VipPopup() {
   const { open, status, close, join } = useVipPopup();

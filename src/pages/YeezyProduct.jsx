@@ -30,7 +30,7 @@ function ImageCarouselControls({ direction, onClick }) {
       className="
         group flex items-center justify-center
         w-8 h-8 md:w-10 md:h-10
-        transition-all duration-300
+        transition-all duration-200
         focus:outline-none
       "
     >
@@ -41,7 +41,7 @@ function ImageCarouselControls({ direction, onClick }) {
         fill="none"
         className="
           opacity-40 group-hover:opacity-100
-          transition-opacity duration-300
+          transition-opacity duration-200
         "
       >
         {direction === "left" ? (
@@ -167,7 +167,7 @@ function ProductGallery({ images, productName }) {
             className="focus:outline-none"
           >
             <span
-              className="block rounded-full transition-all duration-300"
+              className="block rounded-full transition-all duration-200"
               style={{
                 width: current === index ? "18px" : "5px",
                 height: "5px",
@@ -368,7 +368,7 @@ function ProductInfo({
         tracking-[0.28em]
         uppercase
         font-light
-        transition-all duration-300
+        transition-all duration-200
         active:scale-[0.98]
         focus:outline-none
 
@@ -387,7 +387,7 @@ function ProductInfo({
     >
       {/* BUTTON TEXT */}
       <span
-        className="transition-all duration-300"
+        className="transition-all duration-200"
         style={{
           transform: adding ? "translateY(-2px)" : "translateY(0px)",
           opacity: adding ? 0.8 : 1,
@@ -458,7 +458,7 @@ function ProductInfo({
                 w-8 h-8
                 border border-black/20
                 flex items-center justify-center
-                transition-all duration-300
+                transition-all duration-200
                 hover:border-black/60
                 focus:outline-none
               "
@@ -467,7 +467,7 @@ function ProductInfo({
                 className="text-base font-thin leading-none"
                 style={{
                   transform: open ? "rotate(45deg)" : "rotate(0deg)",
-                  transition: "transform 0.3s ease",
+                  transition: "transform 0.25s ease",
                 }}
               >
                 +
@@ -479,7 +479,7 @@ function ProductInfo({
           <div
             className="
               overflow-hidden
-              transition-all duration-500 ease-in-out
+              transition-all duration-[250ms] ease-in-out
               w-full flex justify-center
             "
             style={{
@@ -513,7 +513,7 @@ function ProductInfo({
                             w-7 h-7
                             rounded-full
                             border
-                            transition-all duration-300
+                            transition-all duration-200
                             focus:outline-none
                             ${
                               selectedColorIdx === idx
@@ -572,7 +572,7 @@ function ProductInfo({
                   uppercase
                   text-red-500
                   font-light
-                  transition-all duration-300
+                  transition-all duration-200
                   ${
                     showError
                       ? "opacity-100 translate-y-0"
@@ -613,7 +613,7 @@ function TimelineItem({ product }) {
             srcSet={srcSet || undefined}
             sizes="80px"
             alt={product.name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04]"
             draggable={false}
             loading="lazy"
           />

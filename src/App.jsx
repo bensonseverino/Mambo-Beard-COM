@@ -35,6 +35,18 @@ function PageViewTracker() {
   return null;
 }
 
+// Remounts the route tree on navigation so each page gets one subtle
+// fade/rise enter animation (see .page-enter in index.css). Pure
+// opacity/transform — never blocks interaction or image loading.
+function RouteShell({ children }) {
+  const { pathname } = useLocation();
+  return (
+    <div key={pathname} className="page-enter">
+      {children}
+    </div>
+  );
+}
+
 // Global defaults + Organization/WebSite structured data. Rendered before
 // the routes so page-level <SEO> (mounted later) wins for duplicates.
 function GlobalSEO() {
@@ -90,15 +102,19 @@ function App() {
           />
 
           <Suspense fallback={null}>
-            <Routes>
-              <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
-              <Route
-                path="/product/:slug"
-                element={<YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />}
-              />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/privacy" element={<Privacy />} />
-            </Routes>
+            <RouteShell>
+              <Routes>
+                <Route path="/" element={<Home zoomLevel={zoomLevel} />} />
+                <Route
+                  path="/product/:slug"
+                  element={
+                    <YeezyProduct zoomLevel={zoomLevel} maxZoom={maxZoom} />
+                  }
+                />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+              </Routes>
+            </RouteShell>
           </Suspense>
 
           <CartDrawer open={cartOpen} toggle={() => setCartOpen(false)} />

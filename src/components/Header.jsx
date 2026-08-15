@@ -51,7 +51,7 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
           <span
             style={{
               display: "inline-flex",
-              transition: "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+              transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
               transform: showBackArrow ? "rotate(0deg)" : "rotate(90deg)",
               color: "#43392f",
             }}

@@ -173,11 +173,11 @@ code {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   will-change: opacity;
-  animation: mb-vip-fade-in 0.35s ease-out;
+  animation: mb-vip-fade-in 0.25s ease-out;
 }
 
 .vip-overlay.closing {
-  animation: mb-vip-fade-out 0.35s ease-in forwards;
+  animation: mb-vip-fade-out 0.25s ease-in forwards;
 }
 
 .vip-dialog {
@@ -196,11 +196,11 @@ code {
   overflow: hidden;
   outline: none;
   will-change: transform, opacity;
-  animation: mb-vip-sheet-in 0.35s ease-out;
+  animation: mb-vip-sheet-in 0.25s ease-out;
 }
 
 .vip-dialog.closing {
-  animation: mb-vip-sheet-out 0.35s ease-in forwards;
+  animation: mb-vip-sheet-out 0.25s ease-in forwards;
 }
 
 /* Overrides the global h2 color (unlayered beats Tailwind's layered
@@ -263,6 +263,35 @@ code {
   to {
     transform: translateY(100%);
     opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Route enter — one subtle fade/rise when a route mounts. Pure
+   opacity/transform, ~220ms, so navigation never feels blocked.
+   ───────────────────────────────────────────────────────────── */
+.page-enter {
+  animation: mambo-page-enter 0.22s ease-out;
+}
+
+@keyframes mambo-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Add-to-cart progress line (referenced by the product page button). */
+@keyframes loading {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
   }
 }
 
@@ -345,7 +374,8 @@ code {
   .ea-rise-3,
   .ea-rise-4,
   .ea-rise-5,
-  .ea-marquee-track {
+  .ea-marquee-track,
+  .page-enter {
     animation: none;
   }
 }

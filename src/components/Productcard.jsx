@@ -15,13 +15,19 @@ export default function ProductCard({ product, eager = false }) {
 
   return (
     <div className="text-center">
-      <Link to={`/product/${product.slug || product.id}`} state={{ fromHome: true }}>
+      <Link
+        to={`/product/${product.slug || product.id}`}
+        state={{ fromHome: true }}
+        className="group block overflow-hidden"
+      >
+        {/* Subtle luxury zoom on hover — transform only, clipped by the
+            overflow-hidden link so layout never shifts. */}
         <img
           src={imageSrc}
           srcSet={srcSet || undefined}
           sizes="(min-width: 768px) 25vw, 50vw"
           alt={`${BRAND} ${product.name}`}
-          className="w-full aspect-3/4 object-cover bg-[#f5fffa]"
+          className="w-full aspect-3/4 object-cover bg-[#f5fffa] transition-transform duration-300 ease-out group-hover:scale-[1.04]"
           loading={eager ? "eager" : "lazy"}
           fetchPriority={eager ? "high" : "auto"}
           decoding="async"

@@ -147,7 +147,7 @@ export default function CartDrawer({ open, toggle }) {
     <div
       className={`fixed top-0 right-0 h-full w-80 bg-white p-4 ${
         open ? "translate-x-0" : "translate-x-full"
-      } transition`}
+      } transition-transform duration-200 ease-out`}
     >
       <button onClick={toggle}>Close</button>
 
