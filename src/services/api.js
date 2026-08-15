@@ -10,7 +10,7 @@ const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || "";
  * Works with any public R2 URL or custom CDN domain.
  *
  * @param {string} path — R2 object key, e.g. "products/distorted-future/black/front.webp"
- * @returns {string} Full URL, e.g. "https://cdn.mambobeard.com/products/distorted-future/black/front.webp"
+ * @returns {string} Full URL, e.g. "https://cdn.mambobeard.store/products/distorted-future/black/front.webp"
  */
 export const buildImageUrl = (path) => {
   if (!path) return "";

@@ -36,10 +36,10 @@ test("products.xml returns a Google Shopping RSS feed with active products", asy
   );
   assert.match(xml, /<g:id>prod-1<\/g:id>/);
   assert.match(xml, /<title>Classic Beard Oil<\/title>/);
-  assert.match(xml, /<link>https:\/\/www\.mambobeard\.com\/product\/classic-beard-oil<\/link>/);
+  assert.match(xml, /<link>https:\/\/mambobeard\.store\/product\/classic-beard-oil<\/link>/);
   assert.match(
     xml,
-    /<g:image_link>https:\/\/www\.mambobeard\.com\/products\/classic-beard-oil\/amber\/front\.webp<\/g:image_link>/,
+    /<g:image_link>https:\/\/mambobeard\.store\/products\/classic-beard-oil\/amber\/front\.webp<\/g:image_link>/,
   );
   assert.match(xml, /<g:price>24\.00 KES<\/g:price>/);
   assert.match(xml, /<g:brand>Mambo Beard<\/g:brand>/);

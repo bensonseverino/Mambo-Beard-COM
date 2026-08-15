@@ -20,7 +20,7 @@
   ],
 
   "vars": {
-    "SITE_URL": "https://www.mambobeard.com",
+    "SITE_URL": "https://mambobeard.store",
     // Public base URL for R2 product images (custom domain / r2.dev URL).
     // The edge middleware falls back to SITE_URL when unset, so product
     // Open Graph images always resolve to an absolute URL either way.

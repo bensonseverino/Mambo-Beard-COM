@@ -6,7 +6,7 @@ export async function onRequestGet(context) {
   const site = (
     env?.SITE_URL ||
     env?.CF_PAGES_URL ||
-    "https://www.mambobeard.com"
+    "https://mambobeard.store"
   ).replace(/\/$/, "");
 
   const body = `User-agent: *

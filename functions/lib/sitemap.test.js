@@ -32,7 +32,7 @@ test("sitemap.xml includes static pages and every active product", async () => {
 
   const xml = await response.text();
   assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
-  assert.match(xml, /<loc>https:\/\/www\.mambobeard\.com\/<\/loc>/);
+  assert.match(xml, /<loc>https:\/\/mambobeard\.store\/<\/loc>/);
   assert.match(xml, /\/terms/);
   assert.match(xml, /\/privacy/);
   assert.match(xml, /\/product\/classic-beard-oil/);
@@ -69,5 +69,5 @@ test("robots.txt allows crawling and references the sitemap", async () => {
   assert.match(body, /User-agent: \*/);
   assert.match(body, /Allow: \//);
   assert.match(body, /Disallow: \/api\//);
-  assert.match(body, /Sitemap: https:\/\/www\.mambobeard\.com\/sitemap\.xml/);
+  assert.match(body, /Sitemap: https:\/\/mambobeard\.store\/sitemap\.xml/);
 });

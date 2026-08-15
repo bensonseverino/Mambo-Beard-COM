@@ -5,7 +5,7 @@
 import { ensureSchema } from "./lib/schema.js";
 
 const getSiteUrl = (env) =>
-  (env?.SITE_URL || env?.CF_PAGES_URL || "https://www.mambobeard.com").replace(
+  (env?.SITE_URL || env?.CF_PAGES_URL || "https://mambobeard.store").replace(
     /\/$/,
     "",
   );
