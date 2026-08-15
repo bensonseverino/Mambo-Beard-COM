@@ -44,6 +44,13 @@ test("products.xml returns a Google Shopping RSS feed with active products", asy
   assert.match(xml, /<g:price>24\.00 KES<\/g:price>/);
   assert.match(xml, /<g:brand>Mambo Beard<\/g:brand>/);
   assert.match(xml, /<g:availability>in stock<\/g:availability>/);
+  // Every item declares identifier_exists=false (no GTIN/MPN on these products)
+  // so Merchant Center stops flagging missing identifiers.
+  assert.equal(
+    (xml.match(/<g:identifier_exists>false<\/g:identifier_exists>/g) || [])
+      .length,
+    2,
+  );
   // Category → Google taxonomy: seed uses "Care" and "Tools".
   assert.match(
     xml,

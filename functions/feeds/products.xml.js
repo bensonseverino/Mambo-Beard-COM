@@ -160,6 +160,7 @@ export async function onRequestGet(context) {
       <link>${xmlEscape(link)}</link>${imageUrl ? `\n      <g:image_link>${xmlEscape(imageUrl)}</g:image_link>` : ""}${googleCategory ? `\n      <g:google_product_category>${xmlEscape(googleCategory)}</g:google_product_category>` : ""}
       <g:condition>new</g:condition>
       <g:availability>${availability}</g:availability>
+      <g:identifier_exists>false</g:identifier_exists>
       <g:price>${formattedPrice}</g:price>
       <g:brand>${xmlEscape(BRAND)}</g:brand>
     </item>`;
