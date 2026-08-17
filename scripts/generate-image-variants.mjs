@@ -176,7 +176,7 @@ const downloadObject = (bucketName, key, dest) => {
       "object",
       "get",
       `${bucketName}/${key}`,
-      ...(LOCAL ? ["--local"] : []),
+      ...(LOCAL ? ["--local"] : ["--remote"]),
       "--file",
       dest,
     ]);
@@ -193,7 +193,7 @@ const uploadVariant = (bucketName, key, file) => {
     "object",
     "put",
     `${bucketName}/${key}`,
-    ...(LOCAL ? ["--local"] : []),
+    ...(LOCAL ? ["--local"] : ["--remote"]),
     "--file",
     file,
     "--content-type",

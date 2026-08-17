@@ -19,6 +19,9 @@ export const SCHEMA_STATEMENTS = [
     active INTEGER NOT NULL DEFAULT 1,
     product_type TEXT NOT NULL DEFAULT 'variant',
     variation_type TEXT NOT NULL DEFAULT 'none',
+    weight REAL,
+    -- weight (kilograms, nullable) feeds g:shipping_weight in the product
+    -- feed; NULL falls back to a category-based default in the feed code.
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -194,6 +197,9 @@ export const ensureSchema = async (env) => {
     "TEXT NOT NULL DEFAULT 'variant'",
   );
   await ensureColumn(db, "products", "variation_type", "TEXT NOT NULL DEFAULT 'none'");
+  // Optional per-product shipping weight in kilograms. The product feed reads
+  // it for g:shipping_weight and falls back to a category default when unset.
+  await ensureColumn(db, "products", "weight", "REAL");
 
   // Unique indexes can fail on pre-existing dirty data (e.g. duplicate
   // customer phones or duplicate inventory combinations). Catch each one so

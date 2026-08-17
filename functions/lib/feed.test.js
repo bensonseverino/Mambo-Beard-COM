@@ -283,3 +283,19 @@ test("products.xml refuses image-less products and logs them loudly", async () =
     "expected a loud log entry for the image-less product",
   );
 });
+
+test("products.xml uses the per-product weight column when set, else the category default", async () => {
+  await db.prepare("UPDATE products SET weight = 1.25 WHERE id = 'prod-1'").run();
+
+  const xml = await (await feedHandler({ env: { DB: db } })).text();
+  // prod-1 has an explicit weight → used verbatim.
+  assert.match(
+    xml,
+    /<g:id>prod-1<\/g:id>[\s\S]*?<g:shipping_weight>1\.25 kg<\/g:shipping_weight>/,
+  );
+  // prod-2 has no weight → category default (Tools → 0.6 kg).
+  assert.match(
+    xml,
+    /<g:id>prod-2<\/g:id>[\s\S]*?<g:shipping_weight>0\.6 kg<\/g:shipping_weight>/,
+  );
+});

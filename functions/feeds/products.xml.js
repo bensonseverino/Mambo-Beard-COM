@@ -69,6 +69,17 @@ const formatGooglePrice = (price) => {
 const formatAvailability = (stock) =>
   Number(stock) > 0 ? "in_stock" : "out_of_stock";
 
+/**
+ * Format a per-product weight (kg, from the products.weight column) for
+ * Google's shipping_weight attribute. Returns null when unset/invalid so
+ * callers fall back to the category-based default.
+ */
+const formatDbWeight = (weight) => {
+  const numeric = Number(weight);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return `${parseFloat(numeric.toFixed(2))} kg`;
+};
+
 // Feed-level shipping for the KE target market. The store charges per-zone
 // delivery fees (functions/api/checkout.js DELIVERY_FEES); the default for
 // any location outside the configured dropdown — and the maximum — is KES 500,
@@ -268,6 +279,7 @@ export async function onRequestGet(context) {
          p.description,
          p.price,
          p.category,
+         p.weight,
          (SELECT pi.path
           FROM product_images pi
           WHERE pi.product_id = p.id
@@ -300,7 +312,10 @@ export async function onRequestGet(context) {
         site,
       );
       const googleCategory = mapGoogleCategory(product.category);
-      const shippingWeight = mapGoogleWeight(product.category);
+      // Per-product weight wins when the admin has set one; otherwise fall
+      // back to the category-based default.
+      const shippingWeight =
+        formatDbWeight(product.weight) || mapGoogleWeight(product.category);
 
       // Refuse to emit items that would generate guaranteed Google errors
       // (missing id/title/price, or a broken image_link) — log loudly instead

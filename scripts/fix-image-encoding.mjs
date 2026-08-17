@@ -22,6 +22,7 @@
 //   npm run images:fix-encoding -- --dry-run  # show what would change, touch nothing
 //   npm run images:fix-encoding -- --local    # run against local wrangler state
 //   npm run images:fix-encoding -- --quality 90
+//   npm run images:fix-encoding -- --only hpqrqy,h4rygo  # only keys containing these substrings
 //
 // After running, purge the Cloudflare cache for /products/* (or wait for the
 // 24h Cache-Control TTL) so Google's next image fetch gets the clean bytes,
@@ -53,6 +54,10 @@ const DRY_RUN = has("dry-run");
 const LOCAL = has("local");
 const QUALITY = parseInt(flag("quality") || `${DEFAULT_QUALITY}`, 10) || DEFAULT_QUALITY;
 const CONCURRENCY = parseInt(flag("concurrency") || "3", 10) || 3;
+const ONLY = (flag("only") || "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
 const run = (cargs) =>
   execFileSync(process.execPath, [WRANGLER_JS, ...cargs], {
@@ -165,7 +170,7 @@ const downloadObject = (bucketName, key, dest) => {
       "object",
       "get",
       `${bucketName}/${key}`,
-      ...(LOCAL ? ["--local"] : []),
+      ...(LOCAL ? ["--local"] : ["--remote"]),
       "--file",
       dest,
     ]);
@@ -181,7 +186,7 @@ const uploadObject = (bucketName, key, file, contentType) => {
     "object",
     "put",
     `${bucketName}/${key}`,
-    ...(LOCAL ? ["--local"] : []),
+    ...(LOCAL ? ["--local"] : ["--remote"]),
     "--file",
     file,
     "--content-type",
@@ -278,6 +283,12 @@ const main = async () => {
       `Could not read image paths from D1 (${LOCAL ? "local" : "remote"}). ` +
         `Is wrangler authenticated? (${error.message})`,
     );
+  }
+  if (ONLY.length) {
+    paths = paths.filter((p) =>
+      ONLY.some((needle) => p.toLowerCase().includes(needle)),
+    );
+    log(`Filtered to ${paths.length} image(s) matching --only (${ONLY.join(", ")}).`);
   }
   log(`${paths.length} unique product image(s) found.`);
 
