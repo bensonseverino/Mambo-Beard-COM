@@ -132,6 +132,13 @@ const validateGoogleProduct = (product) => {
       ? ""
       : 'shipping price must be formatted "1999.00 KES"',
   );
+  check(
+    "shipping_weight",
+    product.shipping_weight,
+    /^\d+(\.\d+)? (g|kg|lb|oz)$/.test(product.shipping_weight || "")
+      ? ""
+      : 'shipping_weight must be a value + unit, e.g. "0.5 kg"',
+  );
 
   return errors;
 };
@@ -198,6 +205,47 @@ const mapGoogleCategory = (category) => {
   return "";
 };
 
+// Representative packaged shipping weight per category, used for Google's
+// shipping_weight attribute (the store charges flat-rate delivery, so weight
+// is informational — it lets Merchant Center estimate shipping costs). Order
+// matters: most-specific patterns first. Categories with no match fall back
+// to a store-wide default.
+const GOOGLE_WEIGHT_RULES = [
+  [/hoodie|sweatshirt|crewneck|jacket|coat|outerwear|windbreaker/i, "0.8 kg"],
+  [
+    /trimmer|clipper|razor|tool/i,
+    "0.6 kg",
+  ],
+  [
+    /mug|ceramic|drinkware|tumbler/i,
+    "0.6 kg",
+  ],
+  [
+    /bag|backpack|tote/i,
+    "0.5 kg",
+  ],
+  [
+    /tee|t-?shirt|shirt|top|polo|pants|trousers|jeans|jogger|sweatpant|shorts|sock/i,
+    "0.4 kg",
+  ],
+  [
+    /beard|care|oil|balm|butter|groom|shav|moistur/i,
+    "0.4 kg",
+  ],
+  [/cap|hat|beanie/i, "0.3 kg"],
+  [/belt|scarf|shawl|glove|mitten/i, "0.3 kg"],
+];
+const DEFAULT_WEIGHT = "0.5 kg";
+
+const mapGoogleWeight = (category) => {
+  const value = String(category || "").trim();
+  if (!value) return DEFAULT_WEIGHT;
+  for (const [pattern, weight] of GOOGLE_WEIGHT_RULES) {
+    if (pattern.test(value)) return weight;
+  }
+  return DEFAULT_WEIGHT;
+};
+
 export async function onRequestGet(context) {
   const { env } = context;
 
@@ -252,6 +300,7 @@ export async function onRequestGet(context) {
         site,
       );
       const googleCategory = mapGoogleCategory(product.category);
+      const shippingWeight = mapGoogleWeight(product.category);
 
       // Refuse to emit items that would generate guaranteed Google errors
       // (missing id/title/price, or a broken image_link) — log loudly instead
@@ -272,6 +321,7 @@ export async function onRequestGet(context) {
         price: formattedPrice,
         availability: formatAvailability(product.total_stock),
         shipping: { ...SHIPPING, price: shippingPrice },
+        shipping_weight: shippingWeight,
       };
 
       // Validation layer: log every deviation with id, field, and value so
@@ -290,6 +340,7 @@ export async function onRequestGet(context) {
       <g:availability>${item.availability}</g:availability>
       <g:identifier_exists>false</g:identifier_exists>
       <g:price>${item.price}</g:price>
+      <g:shipping_weight>${item.shipping_weight}</g:shipping_weight>
       <g:brand>${xmlEscape(BRAND)}</g:brand>
       <g:shipping>
         <g:country>${SHIPPING.country}</g:country>

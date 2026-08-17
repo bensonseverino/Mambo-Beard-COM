@@ -71,6 +71,15 @@ test("products.xml returns a Google Shopping RSS feed with active products", asy
     xml,
     /<g:shipping>\s*<g:country>KE<\/g:country>\s*<g:service>Standard Delivery<\/g:service>\s*<g:price>500\.00 KES<\/g:price>\s*<\/g:shipping>/,
   );
+  // Every item carries a shipping_weight so Merchant Center stops flagging
+  // "Missing shipping weight" (seed: prod-1 "Care" → 0.4 kg, prod-2 "Tools" → 0.6 kg).
+  assert.match(xml, /<g:shipping_weight>0\.4 kg<\/g:shipping_weight>/);
+  assert.match(xml, /<g:shipping_weight>0\.6 kg<\/g:shipping_weight>/);
+  assert.equal(
+    (xml.match(/<g:shipping_weight>\d+(\.\d+)? (g|kg|lb|oz)<\/g:shipping_weight>/g) || [])
+      .length,
+    2,
+  );
   // Every item declares identifier_exists=false (no GTIN/MPN on these products)
   // so Merchant Center stops flagging missing identifiers.
   assert.equal(
@@ -184,6 +193,12 @@ test("products.xml maps apparel categories to the Google taxonomy and omits unkn
   assert.ok(prodXBlock, "prod-x item is present");
   assert.match(prodXBlock, /<title>Mystery Item<\/title>/);
   assert.doesNotMatch(prodXBlock, /google_product_category/);
+  // Shipping weight follows the category rules; unknown categories use the
+  // store-wide default (0.5 kg).
+  assert.match(xml, /<g:id>prod-hoodie<\/g:id>[\s\S]*?<g:shipping_weight>0\.8 kg<\/g:shipping_weight>/);
+  assert.match(xml, /<g:id>prod-tee<\/g:id>[\s\S]*?<g:shipping_weight>0\.4 kg<\/g:shipping_weight>/);
+  assert.match(xml, /<g:id>prod-cap<\/g:id>[\s\S]*?<g:shipping_weight>0\.3 kg<\/g:shipping_weight>/);
+  assert.match(xml, /<g:id>prod-x<\/g:id>[\s\S]*?<g:shipping_weight>0\.5 kg<\/g:shipping_weight>/);
 });
 
 test("products.xml escapes XML-special characters", async () => {
