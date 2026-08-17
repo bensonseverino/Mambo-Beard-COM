@@ -18,6 +18,27 @@ test.beforeEach(async () => {
 
   const seed = await import("./products-seed.js");
   await seed.seedProducts(db);
+
+  // prod-2 ships without an image in the shared seed; the feed refuses
+  // image-less products, so give it one here to keep it feedable.
+  await db
+    .prepare(
+      `INSERT INTO product_images (id, product_id, color_id, path, type, file_name, size, uploaded_at, is_primary, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      "img-2",
+      "prod-2",
+      "color-2",
+      "products/precision-beard-trimmer/matte-black/front.webp",
+      "front",
+      "front.webp",
+      1000,
+      "2026-08-01T00:00:00.000Z",
+      1,
+      1,
+    )
+    .run();
 });
 
 test.afterEach(async () => {
@@ -43,7 +64,13 @@ test("products.xml returns a Google Shopping RSS feed with active products", asy
   );
   assert.match(xml, /<g:price>24\.00 KES<\/g:price>/);
   assert.match(xml, /<g:brand>Mambo Beard<\/g:brand>/);
-  assert.match(xml, /<g:availability>in stock<\/g:availability>/);
+  assert.match(xml, /<g:availability>in_stock<\/g:availability>/);
+  // Every item carries feed-level shipping for the KE target market, priced
+  // at the store's default delivery fee (500.00 KES).
+  assert.match(
+    xml,
+    /<g:shipping>\s*<g:country>KE<\/g:country>\s*<g:service>Standard Delivery<\/g:service>\s*<g:price>500\.00 KES<\/g:price>\s*<\/g:shipping>/,
+  );
   // Every item declares identifier_exists=false (no GTIN/MPN on these products)
   // so Merchant Center stops flagging missing identifiers.
   assert.equal(
@@ -66,7 +93,7 @@ test("products.xml marks items without stock as out of stock", async () => {
   const xml = await (await feedHandler({ env: { DB: db } })).text();
   // prod-2 has no inventory/variant rows in the seed.
   assert.match(xml, /<g:id>prod-2<\/g:id>/);
-  assert.match(xml, /<g:availability>out of stock<\/g:availability>/);
+  assert.match(xml, /<g:availability>out_of_stock<\/g:availability>/);
 });
 
 test("products.xml excludes unpublished products", async () => {
@@ -121,10 +148,23 @@ test("products.xml maps apparel categories to the Google taxonomy and omits unkn
       )
       .run();
 
+  const insertImage = (id, productId, path) =>
+    db
+      .prepare(
+        `INSERT INTO product_images (id, product_id, color_id, path, type, file_name, size, uploaded_at, is_primary, sort_order)
+         VALUES (?, ?, NULL, ?, 'front', ?, 1000, ?, 1, 1)`,
+      )
+      .bind(id, productId, path, path, "2026-08-03T00:00:00.000Z")
+      .run();
+
   await insertProduct("prod-hoodie", "Drop Hoodie", "drop-hoodie", "Hoodies");
   await insertProduct("prod-tee", "Logo Tee", "logo-tee", "Tees");
   await insertProduct("prod-cap", "Snapback Cap", "snapback-cap", "Caps");
   await insertProduct("prod-x", "Mystery Item", "mystery-item", "Mystery");
+  await insertImage("img-hoodie", "prod-hoodie", "products/drop-hoodie/front.webp");
+  await insertImage("img-tee", "prod-tee", "products/logo-tee/front.webp");
+  await insertImage("img-cap", "prod-cap", "products/snapback-cap/front.webp");
+  await insertImage("img-x", "prod-x", "products/mystery-item/front.webp");
 
   const xml = await (await feedHandler({ env: { DB: db } })).text();
   assert.match(
@@ -166,11 +206,65 @@ test("products.xml escapes XML-special characters", async () => {
       "2026-08-02T00:00:00.000Z",
     )
     .run();
+  await db
+    .prepare(
+      `INSERT INTO product_images (id, product_id, color_id, path, type, file_name, size, uploaded_at, is_primary, sort_order)
+       VALUES (?, ?, NULL, ?, 'front', ?, 1000, ?, 1, 1)`,
+    )
+    .bind(
+      "img-3",
+      "prod-3",
+      "products/tees-hoodies/front.webp",
+      "front.webp",
+      "2026-08-02T00:00:00.000Z",
+    )
+    .run();
 
   const xml = await (await feedHandler({ env: { DB: db } })).text();
   assert.match(xml, /<title>Tees &amp; &quot;Hoodies&quot; &lt;Limited&gt;<\/title>/);
   assert.match(
     xml,
     /<g:description>Shirts &lt; 100 &amp; more &gt; today&apos;s drop<\/g:description>/,
+  );
+});
+
+test("products.xml refuses image-less products and logs them loudly", async () => {
+  await db
+    .prepare(
+      `INSERT INTO products (id, name, slug, description, price, category, featured, active, variation_type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      "prod-nopic",
+      "No Photo Item",
+      "no-photo-item",
+      "Has no image row at all.",
+      15,
+      "Care",
+      0,
+      1,
+      "none",
+      "2026-08-01T00:00:00.000Z",
+      "2026-08-01T00:00:00.000Z",
+    )
+    .run();
+
+  const logs = [];
+  const originalError = console.error;
+  console.error = (...args) => logs.push(args.join(" "));
+  let xml;
+  try {
+    xml = await (await feedHandler({ env: { DB: db } })).text();
+  } finally {
+    console.error = originalError;
+  }
+
+  // The image-less product is not emitted with a broken image_link…
+  assert.doesNotMatch(xml, /no-photo-item/);
+  assert.match(xml, /classic-beard-oil/);
+  // …but it is logged loudly with its id so the source data gets fixed.
+  assert.ok(
+    logs.some((line) => line.includes("prod-nopic") && line.includes("image")),
+    "expected a loud log entry for the image-less product",
   );
 });

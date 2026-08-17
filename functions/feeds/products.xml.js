@@ -9,6 +9,22 @@
 // per active product. Meta's catalog data-source import accepts the same
 // format, so the identical URL works for both marketing suites.
 //
+// Google Merchant Center compatibility (see google-merchant-feed-fix.md):
+//   • Currency — prices are formatted as "1999.00 KES" (number + space + ISO
+//     code), the exact shape Google accepts for the KE target market.
+//   • Shipping — every item carries a feed-level <g:shipping> block using the
+//     store's default delivery fee (KES 500 — functions/api/checkout.js
+//     DELIVERY_FEES.Other, the rate for any location outside the dropdown),
+//     so no item can report "missing shipping information".
+//   • Availability — Google's machine values in_stock / out_of_stock.
+//   • Images — g:image_link points at the R2 proxy (/products/...), which
+//     returns real image bytes with a correct Content-Type. Products without
+//     a primary image are refused (and logged loudly) instead of emitting a
+//     broken image_link.
+//   • Validation — every item is validated and deviations are logged with the
+//     product id, field, and generated value, so source-data problems surface
+//     in the Cloudflare logs instead of silently shipping bad items.
+//
 // Stock is summed from the `inventory` table (the single source of truth);
 // products without inventory rows fall back to the legacy `product_variants`
 // mirror. Images and brand/currency come from the same sources the rest of
@@ -33,6 +49,92 @@ const xmlEscape = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+
+// ─────────────────────────────────────────────────────────────
+// GOOGLE FEED VALUE FORMATTERS (feed-only — frontend formatting untouched)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Format a product price for Google: "1999.00 KES".
+ * Returns null for missing / negative / non-numeric prices so callers can
+ * refuse (and log) the product instead of emitting an invalid price.
+ */
+const formatGooglePrice = (price) => {
+  const numericPrice = Number(price);
+  if (!Number.isFinite(numericPrice) || numericPrice < 0) return null;
+  return `${numericPrice.toFixed(2)} ${CURRENCY || "KES"}`;
+};
+
+/** Google's machine availability values (spec: in_stock / out_of_stock). */
+const formatAvailability = (stock) =>
+  Number(stock) > 0 ? "in_stock" : "out_of_stock";
+
+// Feed-level shipping for the KE target market. The store charges per-zone
+// delivery fees (functions/api/checkout.js DELIVERY_FEES); the default for
+// any location outside the configured dropdown — and the maximum — is KES 500,
+// which is the honest flat rate to expose to Merchant Center.
+const SHIPPING = {
+  country: "KE",
+  service: "Standard Delivery",
+  price: 500,
+};
+
+const isAbsoluteHttps = (url) =>
+  typeof url === "string" && /^https:\/\/[^/]/.test(url);
+
+/**
+ * Validate one feed item before it is emitted. Returns an array of
+ * { field, value, problem } entries; callers log every entry so the product
+ * is never silently dropped or shipped broken.
+ */
+const validateGoogleProduct = (product) => {
+  const errors = [];
+  const check = (field, value, problem) => {
+    if (problem) errors.push({ field, value: String(value ?? ""), problem });
+  };
+
+  check("id", product.id, product.id ? "" : "missing id");
+  check("title", product.title, product.title ? "" : "missing title");
+  check(
+    "link",
+    product.link,
+    isAbsoluteHttps(product.link) ? "" : "link must be an absolute https URL",
+  );
+  check(
+    "image_link",
+    product.image_link,
+    !product.image_link
+      ? "missing image_link (product has no primary image)"
+      : isAbsoluteHttps(product.image_link)
+        ? ""
+        : "image_link must be an absolute https URL",
+  );
+  check("price", product.price, product.price ? "" : "missing price");
+  check(
+    "price",
+    product.price,
+    /^\d+\.\d{2} KES$/.test(product.price || "")
+      ? ""
+      : 'price must be formatted "1999.00 KES"',
+  );
+  check(
+    "availability",
+    product.availability,
+    ["in_stock", "out_of_stock"].includes(product.availability)
+      ? ""
+      : "availability must be in_stock or out_of_stock",
+  );
+  check("shipping", product.shipping, product.shipping ? "" : "missing shipping");
+  check(
+    "shipping_price",
+    product.shipping?.price,
+    /^\d+\.\d{2} KES$/.test(product.shipping?.price || "")
+      ? ""
+      : 'shipping price must be formatted "1999.00 KES"',
+  );
+
+  return errors;
+};
 
 // Map the store's free-form `products.category` strings to the official
 // Google product taxonomy (taxonomy.en-US.txt, v2021-09-21 — the current
@@ -136,36 +238,66 @@ export async function onRequestGet(context) {
     const products = result?.results || [];
     const site = getSiteUrl(env);
     const r2PublicUrl = getR2PublicUrl(env);
+    const shippingPrice = formatGooglePrice(SHIPPING.price);
 
-    const items = products
-      .map((product) => {
-        const availability =
-          Number(product.total_stock) > 0 ? "in stock" : "out of stock";
-        const formattedPrice = `${Number(product.price).toFixed(2)} ${
-          CURRENCY || "USD"
-        }`;
-        const link = `${site}/product/${product.slug || product.id}`;
-        const imageUrl = buildImageUrl(
-          product.image_path,
-          r2PublicUrl,
-          site,
+    const items = [];
+    for (const product of products) {
+      const id = product.id;
+      const title = product.name;
+      const formattedPrice = formatGooglePrice(product.price);
+      const link = `${site}/product/${product.slug || product.id}`;
+      const imageUrl = buildImageUrl(
+        product.image_path,
+        r2PublicUrl,
+        site,
+      );
+      const googleCategory = mapGoogleCategory(product.category);
+
+      // Refuse to emit items that would generate guaranteed Google errors
+      // (missing id/title/price, or a broken image_link) — log loudly instead
+      // of shipping broken data. All other deviations are logged below.
+      if (!id || !title || !formattedPrice || !imageUrl) {
+        console.error(
+          `[feed] skipping product ${id || "(no id)"}: missing required feed data ` +
+            `(price=${formattedPrice ?? "null"}, image=${imageUrl ? "present" : "MISSING"})`,
         );
+        continue;
+      }
 
-        const googleCategory = mapGoogleCategory(product.category);
+      const item = {
+        id,
+        title,
+        link,
+        image_link: imageUrl,
+        price: formattedPrice,
+        availability: formatAvailability(product.total_stock),
+        shipping: { ...SHIPPING, price: shippingPrice },
+      };
 
-        return `    <item>
-      <g:id>${xmlEscape(product.id)}</g:id>
-      <title>${xmlEscape(product.name)}</title>
+      // Validation layer: log every deviation with id, field, and value so
+      // source-data problems surface in Cloudflare logs.
+      for (const { field, value, problem } of validateGoogleProduct(item)) {
+        console.warn(`[feed] product ${item.id} — ${field}: ${problem} (value: ${value})`);
+      }
+
+      items.push(`    <item>
+      <g:id>${xmlEscape(item.id)}</g:id>
+      <title>${xmlEscape(item.title)}</title>
       <g:description>${xmlEscape(product.description)}</g:description>
-      <link>${xmlEscape(link)}</link>${imageUrl ? `\n      <g:image_link>${xmlEscape(imageUrl)}</g:image_link>` : ""}${googleCategory ? `\n      <g:google_product_category>${xmlEscape(googleCategory)}</g:google_product_category>` : ""}
+      <link>${xmlEscape(item.link)}</link>
+      <g:image_link>${xmlEscape(item.image_link)}</g:image_link>${googleCategory ? `\n      <g:google_product_category>${xmlEscape(googleCategory)}</g:google_product_category>` : ""}
       <g:condition>new</g:condition>
-      <g:availability>${availability}</g:availability>
+      <g:availability>${item.availability}</g:availability>
       <g:identifier_exists>false</g:identifier_exists>
-      <g:price>${formattedPrice}</g:price>
+      <g:price>${item.price}</g:price>
       <g:brand>${xmlEscape(BRAND)}</g:brand>
-    </item>`;
-      })
-      .join("\n");
+      <g:shipping>
+        <g:country>${SHIPPING.country}</g:country>
+        <g:service>${xmlEscape(SHIPPING.service)}</g:service>
+        <g:price>${item.shipping.price}</g:price>
+      </g:shipping>
+    </item>`);
+    }
 
     const fullXml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
@@ -173,7 +305,7 @@ export async function onRequestGet(context) {
     <title>${xmlEscape(BRAND)} Live Product Feed</title>
     <link>${xmlEscape(site)}</link>
     <description>Dynamic product sync for Google &amp; Meta</description>
-${items}
+${items.join("\n")}
   </channel>
 </rss>
 `;
