@@ -13,7 +13,10 @@ export async function onRequestGet(context) {
 
     return new Response(JSON.stringify({ categories }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=60, s-maxage=60",
+      },
     });
   } catch (error) {
     return new Response(
