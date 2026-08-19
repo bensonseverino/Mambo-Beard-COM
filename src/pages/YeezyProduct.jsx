@@ -604,6 +604,7 @@ function TimelineItem({ product }) {
   return (
     <Link
       to={`/product/${product.slug || product.id}`}
+      state={{ fromHome: true }}
       className="group flex items-center gap-4 rounded-[28px] border border-black/10 bg-white/90 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-slate-100">
