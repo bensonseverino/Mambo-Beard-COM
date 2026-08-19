@@ -1,6 +1,6 @@
+@import "tailwindcss";
+
 :root {
-  --text: #000;
-  --text-h: #000;
   --text: #000;
   --text-h: #000;
   --bg: #f5fffa;
@@ -57,6 +57,11 @@ body {
   background-color: #f5fffa;
 }
 
+html,
+body {
+  min-height: 100svh;
+}
+
 #root {
   width: 100%;
   max-width: 100%;
@@ -111,8 +116,6 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
-
-@import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
    Daily Ye Quote footer widget
