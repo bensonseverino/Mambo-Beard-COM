@@ -84,7 +84,7 @@ export default function Home({ zoomLevel }) {
       />
 
       {/* Desktop always shows grid; Mobile shows carousel at max zoom */}
-      <div className="bg-[#F5FFFA] text-black overflow-hidden">
+      <div className="bg-[#F5FFFA] text-black overflow-hidden flex-1">
         {/* Error state */}
         {error && (
           <div className="flex items-center justify-center py-20 px-4">

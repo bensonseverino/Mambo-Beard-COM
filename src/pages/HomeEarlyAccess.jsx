@@ -171,7 +171,7 @@ export default function HomeEarlyAccess() {
         jsonLd={seoJsonLd}
       />
 
-      <main className="bg-[#F5FFFA] text-[#43392f] overflow-hidden">
+      <main className="bg-[#F5FFFA] text-[#43392f] overflow-hidden flex-1">
         {/* ── HERO — image first, copy + signup below ───────── */}
         <section>
           {/* Campaign image — full-width, top of the page */}

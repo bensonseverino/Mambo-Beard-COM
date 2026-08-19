@@ -41,7 +41,7 @@ function PageViewTracker() {
 function RouteShell({ children }) {
   const { pathname } = useLocation();
   return (
-    <div key={pathname} className="page-enter">
+    <div key={pathname} className="page-enter flex-1 flex flex-col">
       {children}
     </div>
   );
