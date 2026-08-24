@@ -28,9 +28,13 @@ const EXT_TYPES = {
 };
 
 const contentTypeFor = (key, httpMetadata) => {
-  if (httpMetadata?.contentType) return httpMetadata.contentType;
+  // Always derive the content type from the file extension so that GIFs
+  // (and other animated formats) are never mis-served as image/webp —
+  // R2 httpMetadata may have been set incorrectly by the upload tool.
   const ext = key.split(".").pop().toLowerCase();
-  return EXT_TYPES[ext] || "application/octet-stream";
+  const fromExt = EXT_TYPES[ext];
+  if (fromExt) return fromExt;
+  return httpMetadata?.contentType || "application/octet-stream";
 };
 
 // Resolve the original R2 key for a URL path (with or without the
@@ -92,10 +96,15 @@ export async function onRequestGet(context) {
       ? "public, max-age=31536000, s-maxage=31536000, immutable"
       : "public, max-age=86400, s-maxage=86400";
 
-  return new Response(object.body, {
-    headers: {
-      "Content-Type": contentTypeFor(servedKey, object.httpMetadata),
-      "Cache-Control": cacheControl,
-    },
-  });
+  // GIFs need no-transform so Cloudflare Polish / Image Resizing never
+  // flattens the animation into a static WebP/AVIF.
+  const headers = {
+    "Content-Type": contentTypeFor(servedKey, object.httpMetadata),
+    "Cache-Control": cacheControl,
+  };
+  if (isGif) {
+    headers["CDN-Cache-Control"] = "no-transform";
+  }
+
+  return new Response(object.body, { headers });
 }
