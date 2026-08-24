@@ -72,7 +72,10 @@ export async function onRequestGet(context) {
 
   let object = null;
   let servedKey = originalKey;
-  if (width) {
+  // GIFs must always be served as-is to preserve animation — even if a
+  // stale .resized variant exists from a previous script run, skip it.
+  const isGif = originalKey.toLowerCase().endsWith(".gif");
+  if (width && !isGif) {
     const variantKey = `products/.resized/${width}/${originalKey}`;
     object = await bucket.get(variantKey);
     if (object) servedKey = variantKey;
