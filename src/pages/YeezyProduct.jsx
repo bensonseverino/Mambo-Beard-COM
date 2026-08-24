@@ -79,18 +79,16 @@ function ProductGallery({ images, productName }) {
   // than in an effect.
   const [prevImages, setPrevImages] = useState(images);
   if (prevImages !== images) {
-    setPrevImages(images);
-    setCurrent(0);
-    setFading(false);
-  }
-
-  // Cancel any in-flight fade so a stale index can't land after a switch
-  useEffect(() => {
+    // Cancel any in-flight fade synchronously so a stale timeout can't
+    // fire between the state reset and the post-paint effect cleanup.
     if (fadeTimeout.current) {
       clearTimeout(fadeTimeout.current);
       fadeTimeout.current = null;
     }
-  }, [images]);
+    setPrevImages(images);
+    setCurrent(0);
+    setFading(false);
+  }
 
   const goTo = useCallback(
     (index) => {

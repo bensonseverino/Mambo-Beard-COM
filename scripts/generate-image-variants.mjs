@@ -33,7 +33,7 @@ import sharp from "sharp";
 
 const DEFAULT_WIDTHS = [240, 400, 640, 960, 1280];
 const DEFAULT_QUALITY = 80;
-const IMAGE_EXTENSIONS = new Set(["avif", "gif", "jpeg", "jpg", "png", "webp"]);
+const IMAGE_EXTENSIONS = new Set(["avif", "jpeg", "jpg", "png", "webp"]);
 
 // Spawn the wrangler CLI through Node itself — works on Windows without
 // shell/quoting issues around .cmd wrappers.

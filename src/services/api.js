@@ -46,6 +46,9 @@ export const IMAGE_WIDTHS = [240, 400, 640, 960, 1280];
 export const buildImageSrcSet = (path, widths = IMAGE_WIDTHS) => {
   if (!path) return "";
   if (/^https?:\/\//.test(path)) return "";
+  // GIFs must be served as-is to preserve animation — resized WebP
+  // variants would flatten them to a single static frame.
+  if (/\.gif$/i.test(path)) return "";
   const src = buildImageUrl(path);
   return widths.map((w) => `${src}?w=${w} ${w}w`).join(", ");
 };
