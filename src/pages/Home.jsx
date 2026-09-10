@@ -1,7 +1,7 @@
 // pages/Home.jsx — Homepage: product grid.
 // The early-access landing page that previously lived here is preserved,
 // inactive, in pages/HomeEarlyAccess.jsx and can be swapped back anytime.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useProducts from "../hooks/useProducts";
 import ProductCard from "../components/Productcard";
 import MamboBeardFooter from "../components/Footer";
@@ -19,6 +19,25 @@ const GRID_CLASSES = [
   "grid-cols-2 md:grid-cols-3", // Level 1
   "grid-cols-1 md:grid-cols-3", // Level 2 — mobile carousel, desktop stays at 3 cols
 ];
+
+// Products shown on first paint before "Shop More" is tapped:
+// 12 on mobile (<768px), 18 on tablet & desktop (≥768px).
+const INITIAL_COUNT_MOBILE = 12;
+const INITIAL_COUNT_DESKTOP = 18;
+
+// True when the viewport is below Tailwind's md breakpoint (768px).
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 768,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
 
 // ─────────────────────────────────────────────────────────────
 // SKELETON CARD (loading placeholder)
@@ -59,9 +78,26 @@ function VerticalScrollGallery({ items }) {
   );
 }
 
+// "Shop More" reveal button — shows the rest of the products when tapped.
+function ShopMoreButton({ onClick }) {
+  return (
+    <div className="flex justify-center px-4 py-6">
+      <button
+        type="button"
+        onClick={onClick}
+        className="bg-[#43392f] text-[#f5fffa] uppercase tracking-[0.25em] text-sm font-medium px-10 py-3.5 hover:bg-[#332a23] active:scale-[0.99] transition cursor-pointer"
+      >
+        Shop More
+      </button>
+    </div>
+  );
+}
+
 export default function Home({ zoomLevel }) {
   const { products, loading, error } = useProducts();
+  const isMobile = useIsMobile();
   const isMobileCarousel = zoomLevel === 2;
+  const [showAll, setShowAll] = useState(false);
 
   // Skeleton count for loading state
   const skeletonCount = 6;
@@ -73,6 +109,13 @@ export default function Home({ zoomLevel }) {
       products.length ? [collectionJsonLd("All Products", "/", products)] : [],
     [products],
   );
+
+  // Start with a fixed set (12 mobile / 18 desktop); "Shop More" reveals the rest.
+  const initialCount = isMobile ? INITIAL_COUNT_MOBILE : INITIAL_COUNT_DESKTOP;
+  const visibleProducts = showAll
+    ? products
+    : products.slice(0, initialCount);
+  const hasMore = products.length > visibleProducts.length;
 
   return (
     <>
@@ -110,8 +153,11 @@ export default function Home({ zoomLevel }) {
           <>
             {/* Carousel view — mobile only at zoom level 2 */}
             {isMobileCarousel && (
-              <div className="block md:hidden py-4 h-full">
-                <VerticalScrollGallery items={products} />
+              <div className="block md:hidden py-4 h-full overflow-y-auto">
+                <VerticalScrollGallery items={visibleProducts} />
+                {hasMore && (
+                  <ShopMoreButton onClick={() => setShowAll(true)} />
+                )}
               </div>
             )}
 
@@ -121,7 +167,7 @@ export default function Home({ zoomLevel }) {
                 GRID_CLASSES[zoomLevel]
               } ${isMobileCarousel ? "hidden md:grid" : ""}`}
             >
-              {products.map((product, index) => (
+              {visibleProducts.map((product, index) => (
                 // First grid row (desktop: 6 columns) is above the fold —
                 // load eagerly so the LCP image isn't blocked on lazy loading.
                 <ProductCard
@@ -131,6 +177,9 @@ export default function Home({ zoomLevel }) {
                 />
               ))}
             </div>
+            {hasMore && !isMobileCarousel && (
+              <ShopMoreButton onClick={() => setShowAll(true)} />
+            )}
           </>
         )}
       </div>
