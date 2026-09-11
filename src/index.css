@@ -299,6 +299,35 @@ code {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   "Shop More" reveal — cards newly added to the homepage grid/carousel
+   fade/rise in. Transform/opacity only, GPU-friendly. The stagger comes
+   from an inline --reveal-delay set per card in Home.jsx.
+   ───────────────────────────────────────────────────────────── */
+.mb-reveal {
+  opacity: 0;
+  animation: mb-card-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+@keyframes mb-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-reveal {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
    Early Access landing page
    ───────────────────────────────────────────────────────────── */
 

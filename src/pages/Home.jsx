@@ -51,7 +51,12 @@ function SkeletonCard() {
   );
 }
 
-function VerticalScrollGallery({ items }) {
+// "Shop More" reveal timing: each newly revealed card fades/rises in,
+// staggered by this much per card (capped so long tails don't drag).
+const REVEAL_STAGGER_MS = 45;
+const REVEAL_MAX_DELAY_MS = 450;
+
+function VerticalScrollGallery({ items, revealFrom = Infinity }) {
   return (
     <div
       className="grid grid-cols-1 gap-4 px-4 overflow-y-auto overflow-x-hidden"
@@ -64,16 +69,31 @@ function VerticalScrollGallery({ items }) {
         willChange: "transform",
       }}
     >
-      {/* Duplicate items for endless scrolling */}
-      {[...items, ...items].map((product, index) => (
-        <div
-          key={`${product.id}-${Math.floor(index / items.length)}`}
-          className="w-full"
-        >
-          {/* First visible cards load immediately for a fast first paint */}
-          <ProductCard product={product} eager={index < 2} />
-        </div>
-      ))}
+      {/* Duplicate items for endless scrolling. Both copies of a newly
+          revealed product fade/rise in together (see Home). */}
+      {[...items, ...items].map((product, index) => {
+        const productIndex = index % items.length;
+        const isNew = productIndex >= revealFrom;
+        return (
+          <div
+            key={`${product.id}-${Math.floor(index / items.length)}`}
+            className={isNew ? "mb-reveal" : undefined}
+            style={
+              isNew
+                ? {
+                    ["--reveal-delay"]: `${Math.min(
+                      (productIndex - revealFrom) * REVEAL_STAGGER_MS,
+                      REVEAL_MAX_DELAY_MS,
+                    )}ms`,
+                  }
+                : undefined
+            }
+          >
+            {/* First visible cards load immediately for a fast first paint */}
+            <ProductCard product={product} eager={index < 2} />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -98,6 +118,9 @@ export default function Home({ zoomLevel }) {
   const isMobile = useIsMobile();
   const isMobileCarousel = zoomLevel === 2;
   const [showAll, setShowAll] = useState(false);
+  // Index in `products` where the "Shop More" reveal batch starts.
+  // Infinity until the button is tapped, so nothing animates on first paint.
+  const [revealedAt, setRevealedAt] = useState(Infinity);
 
   // Skeleton count for loading state
   const skeletonCount = 6;
@@ -116,6 +139,11 @@ export default function Home({ zoomLevel }) {
     ? products
     : products.slice(0, initialCount);
   const hasMore = products.length > visibleProducts.length;
+
+  const handleShopMore = () => {
+    setRevealedAt(visibleProducts.length);
+    setShowAll(true);
+  };
 
   return (
     <>
@@ -154,9 +182,12 @@ export default function Home({ zoomLevel }) {
             {/* Carousel view — mobile only at zoom level 2 */}
             {isMobileCarousel && (
               <div className="block md:hidden py-4 h-full overflow-y-auto">
-                <VerticalScrollGallery items={visibleProducts} />
+                <VerticalScrollGallery
+                  items={visibleProducts}
+                  revealFrom={revealedAt}
+                />
                 {hasMore && (
-                  <ShopMoreButton onClick={() => setShowAll(true)} />
+                  <ShopMoreButton onClick={handleShopMore} />
                 )}
               </div>
             )}
@@ -170,15 +201,26 @@ export default function Home({ zoomLevel }) {
               {visibleProducts.map((product, index) => (
                 // First grid row (desktop: 6 columns) is above the fold —
                 // load eagerly so the LCP image isn't blocked on lazy loading.
-                <ProductCard
+                <div
                   key={product.id}
-                  product={product}
-                  eager={index < 6}
-                />
+                  className={index >= revealedAt ? "mb-reveal" : undefined}
+                  style={
+                    index >= revealedAt
+                      ? {
+                          ["--reveal-delay"]: `${Math.min(
+                            (index - revealedAt) * REVEAL_STAGGER_MS,
+                            REVEAL_MAX_DELAY_MS,
+                          )}ms`,
+                        }
+                      : undefined
+                  }
+                >
+                  <ProductCard product={product} eager={index < 6} />
+                </div>
               ))}
             </div>
             {hasMore && !isMobileCarousel && (
-              <ShopMoreButton onClick={() => setShowAll(true)} />
+              <ShopMoreButton onClick={handleShopMore} />
             )}
           </>
         )}
