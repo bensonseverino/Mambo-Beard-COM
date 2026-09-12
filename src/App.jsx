@@ -6,9 +6,10 @@ import { HelmetProvider } from "react-helmet-async";
 import Home from "./pages/Home";
 import Header from "./components/Header";
 import CartDrawer from "./components/CartDrawer";
+import CartToasts from "./components/CartToasts";
 import VipPopup from "./components/VipPopup";
 import SEO from "./components/SEO";
-import { CartProvider } from "./context/CartContext";
+import { CartProvider, useCart } from "./context/CartContext";
 import {
   DEFAULT_TITLE,
   DEFAULT_DESCRIPTION,
@@ -75,6 +76,12 @@ function useIsMobile() {
   return isMobile;
 }
 
+// Lives inside <CartProvider> — reads the toast list and renders the stack.
+function CartToastHost() {
+  const { toasts, expireToast } = useCart();
+  return <CartToasts toasts={toasts} onExpired={expireToast} />;
+}
+
 function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [rawZoomLevel, setRawZoomLevel] = useState(0);
@@ -118,6 +125,8 @@ function App() {
           </Suspense>
 
           <CartDrawer open={cartOpen} toggle={() => setCartOpen(false)} />
+
+          <CartToastHost />
 
           <VipPopup />
         </BrowserRouter>

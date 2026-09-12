@@ -1,7 +1,8 @@
 // components/CartDrawer.jsx
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "../context/CartContext";
+import useExitFade from "../hooks/useExitFade";
 import { DELIVERY_ZONES, getDeliveryFee } from "../utils/deliveryFee";
 import { createCheckout } from "../services/api";
 import { buildWhatsAppUrl } from "../utils/whatsappMessage";
@@ -23,6 +24,68 @@ const itemTitle = (item) => {
   const parts = [item.selectedColor, item.selectedSize].filter(Boolean);
   return parts.length ? `${item.name} (${parts.join(", ")})` : item.name;
 };
+
+// Cart line item with a fade-in on mount and a fade-out when removed —
+// the × click plays the exit transition first, and only then is the item
+// actually removed from the cart (so React never unmounts it mid-fade).
+function CartLine({ item, index, onRemove }) {
+  const [removing, setRemoving] = useState(false);
+  const { render, closing } = useExitFade(!removing);
+  const removedRef = useRef(false);
+
+  // The fade finished (render flipped false) — commit the real removal.
+  useEffect(() => {
+    if (removing && !render && !removedRef.current) {
+      removedRef.current = true;
+      onRemove(index);
+    }
+  }, [removing, render, index, onRemove]);
+
+  if (!render) return null;
+
+  return (
+    <div
+      className={`mb-fade-in mb-fade-swap flex gap-3 items-start text-sm mb-3 pb-3 border-b ${
+        closing ? "is-closing" : ""
+      }`}
+    >
+      <img
+        src={item.image || ""}
+        alt={item.name}
+        className="w-16 h-16 object-cover rounded"
+      />
+      <div className="flex-1">
+        <p className="font-medium">{itemTitle(item)}</p>
+        <p className="text-gray-600">KES {item.price}</p>
+      </div>
+      <button
+        onClick={() => setRemoving(true)}
+        className="text-red-500 hover:text-red-700 font-bold"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+// The "exact location" input shown only for the Other delivery zone —
+// fades in when it mounts, fades out before it unmounts.
+function ConditionalOtherInput({ visible, onChange }) {
+  const { render, closing } = useExitFade(visible);
+
+  if (!render) return null;
+
+  return (
+    <input
+      placeholder="Enter your exact location"
+      className={`mb-fade-in mb-fade-swap w-full border p-2 ${
+        closing ? "is-closing" : ""
+      }`}
+      onChange={onChange}
+      autoFocus={false}
+    />
+  );
+}
 
 export default function CartDrawer({ open, toggle }) {
   const { cart, removeFromCart, clearCart } = useCart();
@@ -144,36 +207,34 @@ export default function CartDrawer({ open, toggle }) {
   };
 
   return (
-    <div
-      className={`fixed top-0 right-0 h-full w-80 bg-white p-4 ${
-        open ? "translate-x-0" : "translate-x-full"
-      } transition-transform duration-200 ease-out`}
-    >
+    <>
+      {/* Dim overlay behind the drawer — fades in/out with it. Clicking it
+          closes. Kept mounted so its opacity can animate in both directions. */}
+      <div
+        aria-hidden="true"
+        onClick={toggle}
+        className={`fixed inset-0 bg-black/30 transition-opacity duration-200 ease-out ${
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      />
+      <div
+        role="dialog"
+        aria-label="Shopping cart"
+        className={`fixed top-0 right-0 h-full w-80 bg-white p-4 overflow-y-auto ${
+          open ? "translate-x-0" : "translate-x-full"
+        } transition-transform duration-200 ease-out`}
+      >
       <button onClick={toggle}>Close</button>
 
       <h2 className="font-bold mt-2">Cart</h2>
 
       {cart.map((item, i) => (
-        <div
-          key={i}
-          className="flex gap-3 items-start text-sm mb-3 pb-3 border-b"
-        >
-          <img
-            src={item.image || ""}
-            alt={item.name}
-            className="w-16 h-16 object-cover rounded"
-          />
-          <div className="flex-1">
-            <p className="font-medium">{itemTitle(item)}</p>
-            <p className="text-gray-600">KES {item.price}</p>
-          </div>
-          <button
-            onClick={() => removeFromCart(i)}
-            className="text-red-500 hover:text-red-700 font-bold"
-          >
-            ×
-          </button>
-        </div>
+        <CartLine
+          key={item.id ?? i}
+          item={item}
+          index={i}
+          onRemove={removeFromCart}
+        />
       ))}
 
       {/* FORM */}
@@ -212,14 +273,11 @@ export default function CartDrawer({ open, toggle }) {
           ))}
         </select>
 
-        {/* CONDITIONAL INPUT */}
-        {zone === "Other" && (
-          <input
-            placeholder="Enter your exact location"
-            className="w-full border p-2"
-            onChange={(e) => setCustomLocation(e.target.value)}
-          />
-        )}
+        {/* CONDITIONAL INPUT — fades in, and fades out before unmounting */}
+        <ConditionalOtherInput
+          visible={zone === "Other"}
+          onChange={(e) => setCustomLocation(e.target.value)}
+        />
       </div>
 
       {/* TOTALS */}
@@ -236,6 +294,7 @@ export default function CartDrawer({ open, toggle }) {
       >
         {loading ? "Placing order…" : "Checkout via WhatsApp"}
       </button>
-    </div>
+      </div>
+    </>
   );
 }

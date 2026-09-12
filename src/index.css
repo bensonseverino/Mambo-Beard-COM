@@ -288,6 +288,95 @@ code {
   }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   State-change fades — shared utilities for content that would
+   otherwise pop in abruptly: loading→content swaps, conditionally
+   mounted elements (cart lines, extra form fields), badges, and
+   inline messages. One timing/curve everywhere; opacity/transform
+   only; always gated behind prefers-reduced-motion.
+   ───────────────────────────────────────────────────────────── */
+
+/* Enter fade for elements mounting into the layout (cart lines, the
+   "Other" location field). .mb-fade-swap adds a short exit fade for
+   elements that unmount. Fill is "backwards" (not "both") so the
+   animation releases the element once played — an .is-closing exit
+   transition must be able to take over afterwards. */
+.mb-fade-in {
+  animation: mb-fade-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes mb-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Exit fade for unmounting elements — parent applies .is-closing while
+   the removal animation plays, then actually removes the element after
+   EXIT_FADE_MS (see hooks/useExitFade.js). */
+.mb-fade-swap {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.mb-fade-swap.is-closing {
+  opacity: 0;
+  transform: translateY(4px);
+  /* Elements that also carry .mb-fade-in would otherwise have their
+     enter animation's transform fighting the exit transition. */
+  pointer-events: none;
+}
+
+/* Inline messages (form errors, hints) — quick fade, no layout shift. */
+.mb-fade-text {
+  animation: mb-fade-text 0.18s ease-out both;
+}
+
+@keyframes mb-fade-text {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Numeric badges (cart count) — tiny pop so count changes register. */
+.mb-fade-pop {
+  animation: mb-fade-pop 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mb-fade-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .mb-fade-in,
+  .mb-fade-text,
+  .mb-fade-pop {
+    animation: none;
+  }
+
+  .mb-fade-swap,
+  .mb-fade-swap.is-closing {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Add-to-cart progress line (referenced by the product page button). */
 @keyframes loading {
   from {
@@ -300,11 +389,16 @@ code {
 
 /* ─────────────────────────────────────────────────────────────
    "Shop More" reveal — cards newly added to the homepage grid/carousel
-   fade/rise in. Transform/opacity only, GPU-friendly. The stagger comes
-   from an inline --reveal-delay set per card in Home.jsx.
+   fade/rise in as they scroll into view (IntersectionObserver in Home.jsx
+   adds .is-visible). Transform/opacity only, GPU-friendly. Cards within a
+   single observer batch get a small stagger via --reveal-delay, set per
+   card in Home.jsx.
    ───────────────────────────────────────────────────────────── */
 .mb-reveal {
   opacity: 0;
+}
+
+.mb-reveal.is-visible {
   animation: mb-card-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: var(--reveal-delay, 0ms);
 }
@@ -321,9 +415,41 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mb-reveal {
+  .mb-reveal,
+  .mb-reveal.is-visible {
     animation: none;
     opacity: 1;
+  }
+}
+
+/* "Shop More" pending state — tiny spinner shown for the reveal beat after
+   the tap. Reduced-motion users see "Loading…" text instead (see below). */
+.mb-spinner {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1.5px solid #43392f;
+  border-top-color: transparent;
+  border-radius: 9999px;
+  animation: mb-spin 0.7s linear infinite;
+}
+
+@keyframes mb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mb-reduced-only {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-spinner {
+    display: none;
+  }
+
+  .mb-reduced-only {
+    display: inline;
   }
 }
 

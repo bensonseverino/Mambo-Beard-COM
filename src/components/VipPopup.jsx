@@ -1,11 +1,69 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, CheckCircle2 } from "lucide-react";
 import useVipPopup from "../hooks/useVipPopup";
+import useExitFade from "../hooks/useExitFade";
 import { isValidKenyanPhone } from "../services/subscribers";
 
 const FOCUSABLE =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 const CLOSE_ANIMATION_MS = 250;
+
+// The join form — fades out before the success view replaces it, instead
+// of being swapped out instantly when the subscription succeeds.
+function JoinForm({ onSubmit, status, phone, onPhoneChange, fieldError }) {
+  const { render, closing } = useExitFade(status !== "success");
+
+  if (!render) return null;
+
+  return (
+    <div
+      className={`mb-fade-in mb-fade-swap w-full max-w-[500px] mx-auto text-center flex flex-col justify-center gap-2 ${
+        closing ? "is-closing" : ""
+      }`}
+    >
+      <h2 className="text-[#43392f] text-[clamp(13px,2vw,19px)] font-medium tracking-[0.1em] leading-snug m-0">
+        JOIN THE MAMBO BEARD VIP LIST
+      </h2>
+
+      <p className="text-[#43392f] text-[clamp(11px,1.4vw,13px)] leading-snug opacity-70 m-0">
+        Be first to access limited drops, exclusive releases and
+        members-only offers.
+      </p>
+
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-2">
+        <input
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="Enter your phone number"
+          value={phone}
+          onChange={onPhoneChange}
+          aria-invalid={Boolean(fieldError)}
+          aria-describedby={fieldError ? "vip-error" : undefined}
+          className="w-full bg-transparent border border-[#43392f]/25 px-4 py-2.5 text-center text-[#43392f] placeholder:text-[#43392f]/40 tracking-wider focus:border-[#43392f]/70 focus:outline-none transition-colors"
+        />
+
+        <p
+          key={fieldError || "empty"}
+          id="vip-error"
+          role="alert"
+          aria-hidden={!fieldError}
+          className="mb-fade-text min-h-[16px] text-center text-[11px] leading-[16px] tracking-wide text-[#d64545] m-0"
+        >
+          {fieldError}
+        </p>
+
+        <button
+          type="submit"
+          disabled={status === "loading"}
+          className="w-full bg-[#43392f] text-[#f5fffa] uppercase tracking-[0.2em] text-sm font-medium py-2.5 hover:bg-[#332a23] active:scale-[0.99] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {status === "loading" ? "JOINING…" : "GET EARLY ACCESS"}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 export default function VipPopup() {
   const { open, status, close, join } = useVipPopup();
@@ -133,7 +191,7 @@ export default function VipPopup() {
         </button>
 
         {status === "success" ? (
-          <div className="w-full max-w-[500px] mx-auto text-center flex flex-col items-center justify-center gap-2">
+          <div className="mb-fade-in w-full max-w-[500px] mx-auto text-center flex flex-col items-center justify-center gap-2">
             <CheckCircle2
               size={40}
               strokeWidth={1.5}
@@ -147,50 +205,16 @@ export default function VipPopup() {
             </p>
           </div>
         ) : (
-          <div className="w-full max-w-[500px] mx-auto text-center flex flex-col justify-center gap-2">
-            <h2 className="text-[#43392f] text-[clamp(13px,2vw,19px)] font-medium tracking-[0.1em] leading-snug m-0">
-              JOIN THE MAMBO BEARD VIP LIST
-            </h2>
-
-            <p className="text-[#43392f] text-[clamp(11px,1.4vw,13px)] leading-snug opacity-70 m-0">
-              Be first to access limited drops, exclusive releases and
-              members-only offers.
-            </p>
-
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-2">
-              <input
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="Enter your phone number"
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  if (fieldError) setFieldError("");
-                }}
-                aria-invalid={Boolean(fieldError)}
-                aria-describedby={errorText ? "vip-error" : undefined}
-                className="w-full bg-transparent border border-[#43392f]/25 px-4 py-2.5 text-center text-[#43392f] placeholder:text-[#43392f]/40 tracking-wider focus:border-[#43392f]/70 focus:outline-none transition-colors"
-              />
-
-              <p
-                id="vip-error"
-                role="alert"
-                aria-hidden={!errorText}
-                className="min-h-[16px] text-center text-[11px] leading-[16px] tracking-wide text-[#d64545] m-0"
-              >
-                {errorText}
-              </p>
-
-              <button
-                type="submit"
-                disabled={status === "loading"}
-                className="w-full bg-[#43392f] text-[#f5fffa] uppercase tracking-[0.2em] text-sm font-medium py-2.5 hover:bg-[#332a23] active:scale-[0.99] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {status === "loading" ? "JOINING…" : "GET EARLY ACCESS"}
-              </button>
-            </form>
-          </div>
+          <JoinForm
+            onSubmit={handleSubmit}
+            status={status}
+            phone={phone}
+            onPhoneChange={(e) => {
+              setPhone(e.target.value);
+              if (fieldError) setFieldError("");
+            }}
+            fieldError={errorText}
+          />
         )}
       </div>
     </div>

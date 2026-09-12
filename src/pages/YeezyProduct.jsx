@@ -783,6 +783,7 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         />
         <div
           className="
+            mb-fade-in
             min-h-screen
             flex items-center justify-center
             px-4
@@ -817,6 +818,7 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
 
       <div
         className="
+          mb-fade-in
           min-h-screen w-full
           flex flex-col items-center justify-start
           py-10 md:py-16 px-4 pb-16

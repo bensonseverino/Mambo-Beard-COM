@@ -68,8 +68,10 @@ export default function Header({ toggleCart, zoomLevel, maxZoom, toggleZoom }) {
       <div className="flex justify-end">
         <button onClick={toggleCart} className="relative">
           <ShoppingBag style={{ color: "#43392f" }} />
+          {/* Count pops subtly whenever the number changes (key remount). */}
           <span
-            className="absolute -top-2 -right-2 text-xs text-white rounded-full px-1"
+            key={cart.length}
+            className="mb-fade-pop absolute -top-2 -right-2 text-xs text-white rounded-full px-1"
             style={{ backgroundColor: "#43392f" }}
           >
             {cart.length}
