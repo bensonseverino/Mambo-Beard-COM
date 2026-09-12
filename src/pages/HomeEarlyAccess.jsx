@@ -4,7 +4,7 @@
 // To swap it back in: point the "/" route in App.jsx at this component.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CircleCheck as CheckCircle2, ArrowRight } from "lucide-react";
 import useProducts from "../hooks/useProducts";
 import MamboBeardFooter from "../components/Footer";
 import SEO from "../components/SEO";

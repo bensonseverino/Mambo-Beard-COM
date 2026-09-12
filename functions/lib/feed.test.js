@@ -124,9 +124,13 @@ test("products.xml honors custom SITE_URL and R2_PUBLIC_URL", async () => {
     })
   ).text();
   assert.match(xml, /<link>https:\/\/shop\.example\.com\/product\/classic-beard-oil<\/link>/);
+  // Images are served through the site's own /products proxy (site URL wins
+  // over R2_PUBLIC_URL) so Google's crawler sees the same cached, resizable
+  // URLs the storefront uses. The seed key's products/ prefix is stripped
+  // to avoid /products/products/.
   assert.match(
     xml,
-    /<g:image_link>https:\/\/cdn\.example\.com\/products\/classic-beard-oil\/amber\/front\.webp<\/g:image_link>/,
+    /<g:image_link>https:\/\/shop\.example\.com\/products\/classic-beard-oil\/amber\/front\.webp<\/g:image_link>/,
   );
 });
 

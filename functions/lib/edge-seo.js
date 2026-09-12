@@ -62,13 +62,25 @@ export const productDescription = (description, name) =>
       `Shop the ${name} by ${BRAND}. Limited drops, premium quality.`,
   );
 
-/** Build an absolute URL for an R2 image path (same rule as src/services/api.js). */
+/**
+ * Build an absolute URL for an R2 image path (same rule as
+ * src/services/api.js): relative object keys are served through the
+ * site's own /products proxy — NOT the raw r2.dev subdomain — so crawlers
+ * and social scrapers get the same cached, resizable URL the storefront
+ * uses. `r2PublicUrl` is kept as a fallback for deployments without the
+ * proxy route.
+ */
 export const buildImageUrl = (path, r2PublicUrl, siteUrl) => {
   if (!path) return "";
   if (/^https?:\/\//.test(path)) return path;
-  const base = (r2PublicUrl || siteUrl || "").replace(/\/$/, "");
-  const clean = path.startsWith("/") ? path.slice(1) : path;
-  return `${base}/${clean}`;
+  let clean = path.startsWith("/") ? path.slice(1) : path;
+  // The proxy route supplies the products/ prefix; DB keys usually carry it
+  // too ("products/ts-01/…"), so strip it to avoid /products/products/.
+  if (clean.startsWith("products/")) clean = clean.slice("products/".length);
+  // Prefer the same-origin proxy (serves ?w= variants + edge cache).
+  if (siteUrl) return `${siteUrl.replace(/\/$/, "")}/products/${clean}`;
+  const base = (r2PublicUrl || "").replace(/\/$/, "");
+  return base ? `${base}/${clean}` : `/${clean}`;
 };
 
 export const canonicalUrl = (siteUrl, path = "/") => {

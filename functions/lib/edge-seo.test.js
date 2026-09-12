@@ -65,10 +65,12 @@ test("product page mirrors the client SEO: title, OG image priority, breadcrumbs
     seo.canonical,
     "https://shop.example.com/product/classic-beard-oil",
   );
-  // Featured image (is_primary) wins over gallery
+  // Featured image (is_primary) wins over gallery; served through the
+  // site's own /products proxy (not the R2 public URL) so ?w= variants
+  // and the edge cache apply for crawlers too.
   assert.equal(
     seo.image,
-    "https://cdn.example.com/products/classic-beard-oil/amber/front.webp",
+    "https://shop.example.com/products/classic-beard-oil/amber/front.webp",
   );
   assert.match(seo.imageAlt, /Classic Beard Oil Amber front/);
   assert.equal(seo.preload, seo.image);
@@ -82,7 +84,7 @@ test("product page mirrors the client SEO: title, OG image priority, breadcrumbs
   assert.equal(productSchema.offers.availability, "https://schema.org/InStock");
   assert.equal(
     productSchema.image[0],
-    "https://cdn.example.com/products/classic-beard-oil/amber/front.webp",
+    "https://shop.example.com/products/classic-beard-oil/amber/front.webp",
   );
 
   assert.ok(

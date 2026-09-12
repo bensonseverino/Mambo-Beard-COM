@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, CheckCircle2 } from "lucide-react";
+import { X, CircleCheck as CheckCircle2 } from "lucide-react";
 import useVipPopup from "../hooks/useVipPopup";
 import useExitFade from "../hooks/useExitFade";
 import { isValidKenyanPhone } from "../services/subscribers";

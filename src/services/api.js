@@ -1,5 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "";
-const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || "";
+
+// Same-origin path that serves product images from R2. The /products proxy
+// (functions/products/[[path]].js) understands `?w=NNN` and serves the
+// pre-generated resized variant at that width when one exists, with a
+// 1-year immutable edge cache. Serving images here — instead of from the
+// raw r2.dev subdomain — is what makes responsive sizes actually work:
+// r2.dev always returns the untouched original (400–500KiB per photo).
+const PRODUCT_IMAGE_BASE = `${API_BASE}/products`;
 
 // ─────────────────────────────────────────────────────────────
 // IMAGE URL BUILDER
@@ -7,26 +14,25 @@ const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || "";
 
 /**
  * Constructs a full image URL from an R2 object path.
- * Works with any public R2 URL or custom CDN domain.
  *
- * When `width` is provided and the URL is served by the same-origin R2 proxy
- * (the default when no CDN is configured), a `?w=` resized-variant query is
- * appended. External CDN URLs are returned untouched.
+ * Relative object keys ("products/…" or "ts-01/…", as stored in
+ * product_images.path) are served through the same-origin /products proxy so
+ * `?w=` resized variants and its long edge cache apply. Absolute URLs are
+ * returned untouched (they are already hosted somewhere final).
  *
  * @param {string} path — R2 object key, e.g. "products/distorted-future/black/front.webp"
  * @param {number} [width] — request a resized variant of this width
- * @returns {string} Full URL, e.g. "https://mambobeard.store/products/distorted-future/black/front.webp?w=640"
+ * @returns {string} Full URL, e.g. "/products/distorted-future/black/front.webp?w=640"
  */
 export const buildImageUrl = (path, width) => {
   if (!path) return "";
-  // If the path is already a full URL, return as-is
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  // Strip leading slash if present
-  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-  const baseUrl = R2_PUBLIC_URL.endsWith("/")
-    ? R2_PUBLIC_URL.slice(0, -1)
-    : R2_PUBLIC_URL;
-  const url = `${baseUrl}/${cleanPath}`;
+  // Already a full URL — nothing to route through the proxy.
+  if (/^https?:\/\//.test(path)) return path;
+  let cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  // The proxy route itself supplies the products/ prefix; DB keys usually
+  // carry it too ("products/ts-01/…"), so strip it to avoid /products/products/.
+  if (cleanPath.startsWith("products/")) cleanPath = cleanPath.slice("products/".length);
+  const url = `${PRODUCT_IMAGE_BASE}/${cleanPath}`;
   return width ? `${url}?w=${width}` : url;
 };
 
