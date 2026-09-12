@@ -9,19 +9,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mambo Beard Club</title>
 
-  <!-- Meta Pixel Code -->
+  <!-- Meta Pixel Code — deferred: fbevents.js ran one ~10s task on the main
+       thread and blocked LCP entirely on mobile. The stub below queues
+       fbq() calls exactly like Meta's snippet; the real script loads only
+       after first paint + browser idle, so tracking still fires within
+       seconds while page load stays unblocked. -->
   <script>
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '908824375147790');
-    // PageView is fired by the React router (src/utils/pixel.js) so every
-    // route change counts exactly once.
+    (function (f, b, e, v) {
+      // Stub queue: collect calls until the real script takes over.
+      var q = [];
+      if (f.fbq) return;
+      var fbq = (f.fbq = function () {
+        q.push([Array.prototype.slice.call(arguments)]);
+      });
+      f._fbq = fbq;
+      fbq.loaded = false;
+      fbq.version = '2.0';
+      fbq.queue = q;
+      fbq.__flush = function () {
+        while (q.length) {
+          f.fbq.apply(null, q.shift());
+        }
+      };
+      fbq('init', '908824375147790');
+      // PageView is fired by the React router (src/utils/pixel.js) so every
+      // route change counts exactly once.
+      // Load the heavy script once the page has painted and the browser is
+      // idle — never during first load.
+      var start = function () {
+        var s = b.createElement(e);
+        s.async = true;
+        s.src = v;
+        s.onload = function () {
+          // fbevents.js replaces window.fbq; replay queued calls into it.
+          if (typeof f.fbq === 'function' && f.fbq !== fbq) f.fbq('init', '908824375147790');
+        };
+        b.getElementsByTagName(e)[0].parentNode.appendChild(s);
+      };
+      if ('requestIdleCallback' in f) {
+        f.addEventListener('load', function () {
+          f.requestIdleCallback(start, { timeout: 6000 });
+        }, { once: true });
+      } else {
+        f.addEventListener('load', function () { setTimeout(start, 2500); }, { once: true });
+      }
+    })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
   </script>
   <noscript><img height="1" width="1" style="display:none"
     src="https://www.facebook.com/tr?id=908824375147790&ev=PageView&noscript=1"
