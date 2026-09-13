@@ -2,26 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 
 const OVERLAY_FADE_MS = 180;
 
-// Real measurements are populated from the product/backend when available.
-// Until then every cell is a deliberate placeholder so the component never
-// silently invents fake measurements.
-const SIZE_CHART_DATA = {
-  sizes: ["S", "M", "L", "XL", "XXL"],
-  measurements: [
-    { label: "Chest", unit: "cm" },
-    { label: "Shoulder", unit: "cm" },
-    { label: "Length", unit: "cm" },
-  ],
-  cells: {
-    S: ["TBD", "TBD", "TBD"],
-    M: ["TBD", "TBD", "TBD"],
-    L: ["TBD", "TBD", "TBD"],
-    XL: ["TBD", "TBD", "TBD"],
-    XXL: ["TBD", "TBD", "TBD"],
-  },
-};
-
-export default function SizeChartModal({ open, onClose }) {
+export default function SizeChartModal({ open, onClose, sizeChart }) {
   const contentRef = useRef(null);
 
   const handleBackdropClick = useCallback(
@@ -54,6 +35,8 @@ export default function SizeChartModal({ open, onClose }) {
       cancelAnimationFrame(raf);
     };
   }, [open, onClose]);
+
+  if (!sizeChart) return null;
 
   return (
     <>
@@ -119,29 +102,29 @@ export default function SizeChartModal({ open, onClose }) {
                   >
                     Size
                   </th>
-                  {SIZE_CHART_DATA.measurements.map((m) => (
+                  {sizeChart.columns.map((column) => (
                     <th
-                      key={m.label}
+                      key={column}
                       className="text-left text-[9px] tracking-[0.25em] uppercase text-black/40 px-4 py-2 font-light"
                       style={{ borderBottom: "1px solid rgba(0,0,0,0.1)" }}
                     >
-                      {m.label} ({m.unit})
+                      {column}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {SIZE_CHART_DATA.sizes.map((size) => (
-                  <tr key={size}>
+                {sizeChart.rows.map((row) => (
+                  <tr key={row.size}>
                     <td className="text-left text-black/60 px-5 py-2 border-b border-black/5 font-light">
-                      {size}
+                      {row.size}
                     </td>
-                    {SIZE_CHART_DATA.cells[size].map((val, idx) => (
+                    {sizeChart.columns.map((column, idx) => (
                       <td
-                        key={idx}
+                        key={column}
                         className="text-center text-black/50 px-4 py-2 border-b border-black/[0.04] font-light"
                       >
-                        {val}
+                        {row.measurements[idx] ?? ""}
                       </td>
                     ))}
                   </tr>

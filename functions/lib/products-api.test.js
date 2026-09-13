@@ -67,6 +67,30 @@ test("GET /api/products/:slug returns product with images, sizes, and variants",
   assert.equal(product.variants[0].stock, 5);
 });
 
+test("GET /api/products/:slug returns the assigned size chart", async () => {
+  await db
+    .prepare("UPDATE products SET size_chart = ? WHERE id = ?")
+    .bind(
+      JSON.stringify({
+        columns: ["Chest (cm)", "Length (cm)"],
+        rows: [{ size: "M", measurements: ["96", "70"] }],
+      }),
+      "prod-1",
+    )
+    .run();
+
+  const response = await productDetailHandler({
+    env: { DB: db },
+    params: { slug: "classic-beard-oil" },
+  });
+  const { product } = await response.json();
+
+  assert.deepEqual(product.sizeChart, {
+    columns: ["Chest (cm)", "Length (cm)"],
+    rows: [{ size: "M", measurements: ["96", "70"] }],
+  });
+});
+
 test("GET /api/products/:slug returns 404 for missing products", async () => {
   const response = await productDetailHandler({
     env: { DB: db },
