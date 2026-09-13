@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import SizeChartButton from "../components/SizeChartButton";
+import { DescriptionTrigger } from "../components/ProductDescriptionToggle";
+import SizeChartModal from "../components/SizeChartModal";
+import { SizeChartStyles } from "../components/SizeChartModal";
 import { Link, useLocation, useParams } from "react-router-dom";
 import useProduct from "../hooks/useProduct";
 import useProducts from "../hooks/useProducts";
@@ -227,6 +231,9 @@ function ProductInfo({
   galleryImages,
   selectedColorIdx,
   onSelectColor,
+  onOpenSizeChart,
+  isDescOpen,
+  onToggleDesc,
 }) {
   const { addToCart } = useCart();
   const [open, setOpen] = useState(false);
@@ -445,32 +452,50 @@ function ProductInfo({
         </div>
       ) : (
         <>
-          {/* EXPAND BUTTON */}
+          {/* ANCHOR ROW — centered × is the fixed anchor; SIZE CHART sits at
+              the far left of the same line and the description trigger at the
+              far right. Both side controls appear only while the panel is
+              expanded; the 1fr tracks keep the × exactly centered either way. */}
           {!isOutOfStock && (
-            <button
-              onClick={() => setOpen((prev) => !prev)}
-              aria-expanded={open}
-              aria-label={open ? "Close options" : "Open options"}
-              className="
-                mt-2
-                w-8 h-8
-                border border-black/20
-                flex items-center justify-center
-                transition-all duration-200
-                hover:border-black/60
-                focus:outline-none
-              "
-            >
-              <span
-                className="text-base font-thin leading-none"
-                style={{
-                  transform: open ? "rotate(45deg)" : "rotate(0deg)",
-                  transition: "transform 0.25s ease",
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center w-full">
+              <div className="justify-self-start">
+                {open && <SizeChartButton onOpen={onOpenSizeChart} />}
+              </div>
+              <button
+                onClick={() => {
+                  // Collapsing the panel also closes the description — its
+                  // trigger lives in this row and would otherwise vanish
+                  // while the section stays open.
+                  if (open && isDescOpen) onToggleDesc();
+                  setOpen((prev) => !prev);
                 }}
+                aria-expanded={open}
+                aria-label={open ? "Close options" : "Open options"}
+                className="
+                  w-8 h-8
+                  border border-black/20
+                  flex items-center justify-center
+                  transition-all duration-200
+                  hover:border-black/60
+                  focus:outline-none
+                "
               >
-                +
-              </span>
-            </button>
+                <span
+                  className="text-base font-thin leading-none"
+                  style={{
+                    transform: open ? "rotate(45deg)" : "rotate(0deg)",
+                    transition: "transform 0.25s ease",
+                  }}
+                >
+                  +
+                </span>
+              </button>
+              <div className="justify-self-end">
+                {open && (
+                  <DescriptionTrigger isOpen={isDescOpen} onToggle={onToggleDesc} />
+                )}
+              </div>
+            </div>
           )}
 
           {/* EXPANDABLE PANEL */}
@@ -486,8 +511,25 @@ function ProductInfo({
             }}
           >
             <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
-              {/* COLOR SECTION — only when the product supports colors */}
-              {hasColor ? (
+              {/* INFO SWAP — when the description is open, the COLOR and
+                  SELECT SIZE sections are replaced in place by the product
+                  description. Selections live in state above, so they survive
+                  the swap untouched and reappear on close. */}
+              {isDescOpen && product.description ? (
+                <div
+                  className="mb-fade-in w-full flex flex-col items-center gap-3"
+                >
+                  <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
+                    Product Description
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-black/70 font-light text-center px-2">
+                    {product.description}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* COLOR SECTION — only when the product supports colors */}
+                  {hasColor ? (
                 <div className="flex flex-col items-center gap-2 w-full">
                   <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
                     Color
@@ -558,6 +600,8 @@ function ProductInfo({
                   />
                 </div>
               ) : null}
+                </>
+              )}
 
               {/* DIVIDER */}
               <div className="w-full border-t border-black/10" />
@@ -701,6 +745,8 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
 
   // Derive the selected color index (starts at null — no selection)
   const [selectedColorIdx, setSelectedColorIdx] = useState(null);
+  const [isSizeChartOpen, setIsSizeChartOpen] = useState(false);
+  const [isDescOpen, setIsDescOpen] = useState(false);
 
   // Reset color selection when the product changes — adjusted during
   // render (React's documented pattern) instead of in an effect.
@@ -708,6 +754,8 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
   if (prevSlug !== slug) {
     setPrevSlug(slug);
     setSelectedColorIdx(null);
+    setIsSizeChartOpen(false);
+    setIsDescOpen(false);
   }
 
   // Build gallery images filtered by selected color
@@ -839,12 +887,17 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
           {/* PRODUCT GALLERY */}
           <ProductGallery images={galleryImages} productName={product.name} />
 
-        {/* PRODUCT INFO */}
+        {/* PRODUCT INFO — its expand × is the center anchor; SIZE CHART sits
+              at the far left of the same line and the description trigger at the
+              far right, both rendered inside ProductInfo's row. */}
         <ProductInfo
           product={product}
           galleryImages={galleryImages}
           selectedColorIdx={selectedColorIdx}
           onSelectColor={setSelectedColorIdx}
+          onOpenSizeChart={() => setIsSizeChartOpen(true)}
+          isDescOpen={isDescOpen}
+          onToggleDesc={() => setIsDescOpen((prev) => !prev)}
         />
 
         {/* TIMELINE SCROLL */}
@@ -856,6 +909,11 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         />
         </main>
       </div>
+
+      {/* SIZE CHART MODAL — rendered once, driven by product-page state; never
+          touches color/size/quantity/gallery/cart state. */}
+      <SizeChartModal open={isSizeChartOpen} onClose={() => setIsSizeChartOpen(false)} />
+      <SizeChartStyles />
     </>
   );
 }
