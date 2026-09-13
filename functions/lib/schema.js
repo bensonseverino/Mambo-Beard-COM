@@ -200,6 +200,12 @@ export const ensureSchema = async (env) => {
   // Optional per-product shipping weight in kilograms. The product feed reads
   // it for g:shipping_weight and falls back to a category default when unset.
   await ensureColumn(db, "products", "weight", "REAL");
+  // Optional per-product size chart, stored as JSON text. Written by the admin
+  // dashboard for products that have one (apparel); NULL means the product has
+  // no size chart and the storefront hides the SIZE CHART control entirely.
+  // Shape: {"columns":["Chest (cm)","Length (cm)"],"rows":[{"size":"S",
+  //   "measurements":["92","68"]}]}
+  await ensureColumn(db, "products", "size_chart", "TEXT");
 
   // Unique indexes can fail on pre-existing dirty data (e.g. duplicate
   // customer phones or duplicate inventory combinations). Catch each one so

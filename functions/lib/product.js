@@ -18,6 +18,50 @@ import { ensureSchema } from "./schema.js";
 
 const VARIATION_TYPES = ["none", "color", "size", "color_size"];
 
+/**
+ * Parse the products.size_chart JSON column (written by the admin dashboard)
+ * into a safe display shape. Optional per product — NULL, empty, or malformed
+ * values all yield null so the storefront hides the size chart control.
+ *
+ * Expected shape:
+ *   {"columns":["Chest (cm)","Length (cm)"],
+ *    "rows":[{"size":"S","measurements":["92","68"]}]}
+ *
+ * Defensively tolerant of rows missing `measurements` and of trailing junk —
+ * garbage from the admin side degrades to "no size chart", never a broken
+ * product page.
+ */
+export const parseSizeChart = (raw) => {
+  if (raw == null) return null;
+  if (typeof raw === "object") return sanitizeSizeChart(raw);
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    return sanitizeSizeChart(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+};
+
+/** Keep only well-formed columns/rows; anything else degrades to null. */
+function sanitizeSizeChart(value) {
+  if (!value || typeof value !== "object") return null;
+  const columns = Array.isArray(value.columns)
+    ? value.columns.map(String).filter((c) => c.trim())
+    : [];
+  const rows = Array.isArray(value.rows)
+    ? value.rows
+        .filter((row) => row && typeof row === "object" && row.size != null)
+        .map((row) => ({
+          size: String(row.size),
+          measurements: Array.isArray(row.measurements)
+            ? row.measurements.map((m) => (m == null ? "" : String(m)))
+            : columns.map(() => ""),
+        }))
+    : [];
+  if (!columns.length || !rows.length) return null;
+  return { columns, rows };
+}
+
 const STANDARD_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL"];
 const sizeRank = (name) => {
   const index = STANDARD_SIZE_ORDER.indexOf(String(name || "").trim());
@@ -39,7 +83,7 @@ export async function getProductBySlug(env, slug) {
   const productResult = await db
     .prepare(
       `SELECT id, slug, name, description, price, category, featured,
-              product_type, variation_type, updated_at
+              product_type, variation_type, size_chart, updated_at
        FROM products
        WHERE (slug = ? OR id = ?) AND active = 1
        LIMIT 1;`,
@@ -163,6 +207,9 @@ export async function getProductBySlug(env, slug) {
     images,
     sizes,
     variants,
+    // Optional size chart from the admin dashboard (products.size_chart JSON).
+    // Null when the product has none — the storefront hides the control.
+    sizeChart: parseSizeChart(productResult.size_chart),
     // Simple products: the single product-level stock figure.
     stock: variationType === "none" ? Number(inventoryRows[0]?.stock) || 0 : null,
   };

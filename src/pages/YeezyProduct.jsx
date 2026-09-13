@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import SizeChartButton from "../components/SizeChartButton";
+import SizeChartTable from "../components/SizeChartTable";
 import { DescriptionTrigger } from "../components/ProductDescriptionToggle";
-import SizeChartModal from "../components/SizeChartModal";
-import { SizeChartStyles } from "../components/SizeChartModal";
+import useExitFade from "../hooks/useExitFade";
 import { Link, useLocation, useParams } from "react-router-dom";
 import useProduct from "../hooks/useProduct";
 import useProducts from "../hooks/useProducts";
@@ -231,16 +231,31 @@ function ProductInfo({
   galleryImages,
   selectedColorIdx,
   onSelectColor,
-  onOpenSizeChart,
-  isDescOpen,
-  onToggleDesc,
 }) {
   const { addToCart } = useCart();
   const [open, setOpen] = useState(false);
+  const [isSizeChartOpen, setIsSizeChartOpen] = useState(false);
+  const [isDescOpen, setIsDescOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [showError, setShowError] = useState(false);
+
+  // Optional size chart from the backend — only apparel-like products have one.
+  const hasSizeChart = Boolean(product.sizeChart);
+
+  // Which panel view is active — exactly one of: selectors, size chart,
+  // description. Each view gets the site's swap language: .mb-fade-in on
+  // mount, .mb-fade-swap.is-closing exit via useExitFade.
+  const view =
+    isSizeChartOpen && hasSizeChart
+      ? "chart"
+      : isDescOpen && product.description
+        ? "desc"
+        : "selectors";
+  const chartFade = useExitFade(view === "chart");
+  const descFade = useExitFade(view === "desc");
+  const selFade = useExitFade(view === "selectors");
 
   // Reset the size when the color or product changes (the size may be
   // unavailable for the new color). Adjusted during render, not in an effect.
@@ -249,6 +264,9 @@ function ProductInfo({
   if (prevResetKey !== resetKey) {
     setPrevResetKey(resetKey);
     setSelectedSize(null);
+    // A new product closes any swapped-in view (size chart / description).
+    setIsSizeChartOpen(false);
+    setIsDescOpen(false);
   }
 
   // Which selectors apply is driven entirely by the product's variation type.
@@ -390,7 +408,9 @@ function ProductInfo({
         }
       `}
     >
-      {/* BUTTON TEXT */}
+      {/* BUTTON TEXT — inner span is keyed so each label change remounts and
+          plays the site's .mb-fade-text fade instead of swapping instantly;
+          the outer span keeps its own "adding" lift transition. */}
       <span
         className="transition-all duration-200"
         style={{
@@ -398,7 +418,12 @@ function ProductInfo({
           opacity: adding ? 0.8 : 1,
         }}
       >
-        {adding ? "Adding..." : added ? "Added to Cart" : "Add to Cart"}
+        <span
+          key={adding ? "adding" : added ? "added" : "idle"}
+          className="mb-fade-text"
+        >
+          {adding ? "Adding..." : added ? "Added to Cart" : "Add to Cart"}
+        </span>
       </span>
 
       {/* LOADING LINE */}
@@ -453,20 +478,35 @@ function ProductInfo({
       ) : (
         <>
           {/* ANCHOR ROW — centered × is the fixed anchor; SIZE CHART sits at
-              the far left of the same line and the description trigger at the
-              far right. Both side controls appear only while the panel is
-              expanded; the 1fr tracks keep the × exactly centered either way. */}
+              the far left of the same line and INFO at the far right. Both are
+              toggles that swap the selectors in the panel below; they are
+              mutually exclusive and only render while the panel is expanded.
+              The 1fr tracks keep the × exactly centered in every state. */}
           {!isOutOfStock && (
             <div className="grid grid-cols-[1fr_auto_1fr] items-center w-full">
               <div className="justify-self-start">
-                {open && <SizeChartButton onOpen={onOpenSizeChart} />}
+                {open && hasSizeChart && (
+                  <SizeChartButton
+                    isOpen={isSizeChartOpen}
+                    onToggle={() => {
+                      const next = !isSizeChartOpen;
+                      setIsSizeChartOpen(next);
+                      // Opening the size chart closes the description —
+                      // the panel shows one view at a time. Called outside
+                      // the updater: updater functions must stay pure
+                      // (StrictMode double-invokes them).
+                      if (next && isDescOpen) setIsDescOpen(false);
+                    }}
+                  />
+                )}
               </div>
               <button
                 onClick={() => {
-                  // Collapsing the panel also closes the description — its
-                  // trigger lives in this row and would otherwise vanish
-                  // while the section stays open.
-                  if (open && isDescOpen) onToggleDesc();
+                  // Collapsing the panel also closes any swapped-in view —
+                  // its trigger lives in this row and would otherwise vanish
+                  // while the view stays open.
+                  setIsDescOpen(false);
+                  setIsSizeChartOpen(false);
                   setOpen((prev) => !prev);
                 }}
                 aria-expanded={open}
@@ -491,8 +531,15 @@ function ProductInfo({
                 </span>
               </button>
               <div className="justify-self-end">
-                {open && (
-                  <DescriptionTrigger isOpen={isDescOpen} onToggle={onToggleDesc} />
+                {open && product.description && (
+                  <DescriptionTrigger
+                    isOpen={isDescOpen}
+                    onToggle={() => {
+                      const next = !isDescOpen;
+                      setIsDescOpen(next);
+                      if (next && isSizeChartOpen) setIsSizeChartOpen(false);
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -510,14 +557,31 @@ function ProductInfo({
               opacity: open && !isOutOfStock ? 1 : 0,
             }}
           >
-            <div className="mt-5 w-72 flex flex-col items-center gap-5 pb-2">
-              {/* INFO SWAP — when the description is open, the COLOR and
-                  SELECT SIZE sections are replaced in place by the product
-                  description. Selections live in state above, so they survive
-                  the swap untouched and reappear on close. */}
-              {isDescOpen && product.description ? (
+            <div className="relative mt-5 w-72 flex flex-col items-center gap-5 pb-2">
+              {/* VIEW SWAP — the panel shows exactly one of three views:
+                  the size chart (SIZE CHART toggle), the product description
+                  (INFO toggle), or the COLOR / SELECT SIZE selectors
+                  (default). The outgoing view fades out (useExitFade →
+                  .is-closing) while the incoming one fades in — same swap
+                  language as the cart drawer and VIP popup. Selections live
+                  in state above, so they survive every swap untouched. */}
+              {chartFade.render && hasSizeChart && (
                 <div
-                  className="mb-fade-in w-full flex flex-col items-center gap-3"
+                  className={`mb-fade-in mb-fade-swap w-full ${
+                    chartFade.closing ? "is-closing absolute inset-x-0 top-0" : ""
+                  }`}
+                >
+                  <SizeChartTable
+                    columns={product.sizeChart.columns}
+                    rows={product.sizeChart.rows}
+                  />
+                </div>
+              )}
+              {descFade.render && product.description && (
+                <div
+                  className={`mb-fade-in mb-fade-swap w-full flex flex-col items-center gap-3 ${
+                    descFade.closing ? "is-closing absolute inset-x-0 top-0" : ""
+                  }`}
                 >
                   <p className="text-[9px] tracking-[0.35em] uppercase text-black/35 font-light">
                     Product Description
@@ -526,8 +590,13 @@ function ProductInfo({
                     {product.description}
                   </p>
                 </div>
-              ) : (
-                <>
+              )}
+              {selFade.render && (
+                <div
+                  className={`mb-fade-in mb-fade-swap w-full flex flex-col items-center gap-5 ${
+                    selFade.closing ? "is-closing absolute inset-x-0 top-0" : ""
+                  }`}
+                >
                   {/* COLOR SECTION — only when the product supports colors */}
                   {hasColor ? (
                 <div className="flex flex-col items-center gap-2 w-full">
@@ -567,10 +636,10 @@ function ProductInfo({
                             backgroundColor: color.hex,
                           }}
                         >
-                          {/* ACTIVE DOT */}
+                          {/* ACTIVE DOT — .mb-fade-pop matches the cart-count pop */}
                           {selectedColorIdx === idx && (
                             <span className="absolute inset-0 flex items-center justify-center">
-                              <span className="w-2 h-2 rounded-full bg-white/80" />
+                              <span className="mb-fade-pop w-2 h-2 rounded-full bg-white/80" />
                             </span>
                           )}
                         </button>
@@ -578,8 +647,11 @@ function ProductInfo({
                     })}
                   </div>
 
-                  {/* SELECTED COLOR LABEL */}
-                  <p className="text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1">
+                  {/* SELECTED COLOR LABEL — keyed fade on name change */}
+                  <p
+                    key={selectedColor ? selectedColor.name : "none"}
+                    className="mb-fade-text text-[9px] tracking-[0.25em] uppercase text-black/45 font-light mt-1"
+                  >
                     {selectedColor ? selectedColor.name : "No color selected"}
                   </p>
                 </div>
@@ -600,7 +672,7 @@ function ProductInfo({
                   />
                 </div>
               ) : null}
-                </>
+                </div>
               )}
 
               {/* DIVIDER */}
@@ -647,7 +719,7 @@ function TimelineItem({ product }) {
     <Link
       to={`/product/${product.slug || product.id}`}
       state={{ fromHome: true }}
-      className="group flex items-center gap-4 rounded-[28px] border border-black/10 bg-white/90 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="mb-fade-in group flex items-center gap-4 rounded-[28px] border border-black/10 bg-white/90 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-slate-100">
         {imageSrc && (
@@ -745,8 +817,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
 
   // Derive the selected color index (starts at null — no selection)
   const [selectedColorIdx, setSelectedColorIdx] = useState(null);
-  const [isSizeChartOpen, setIsSizeChartOpen] = useState(false);
-  const [isDescOpen, setIsDescOpen] = useState(false);
 
   // Reset color selection when the product changes — adjusted during
   // render (React's documented pattern) instead of in an effect.
@@ -754,8 +824,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
   if (prevSlug !== slug) {
     setPrevSlug(slug);
     setSelectedColorIdx(null);
-    setIsSizeChartOpen(false);
-    setIsDescOpen(false);
   }
 
   // Build gallery images filtered by selected color
@@ -895,9 +963,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
           galleryImages={galleryImages}
           selectedColorIdx={selectedColorIdx}
           onSelectColor={setSelectedColorIdx}
-          onOpenSizeChart={() => setIsSizeChartOpen(true)}
-          isDescOpen={isDescOpen}
-          onToggleDesc={() => setIsDescOpen((prev) => !prev)}
         />
 
         {/* TIMELINE SCROLL */}
@@ -910,10 +975,6 @@ export default function ProductPage({ zoomLevel, maxZoom }) {
         </main>
       </div>
 
-      {/* SIZE CHART MODAL — rendered once, driven by product-page state; never
-          touches color/size/quantity/gallery/cart state. */}
-      <SizeChartModal open={isSizeChartOpen} onClose={() => setIsSizeChartOpen(false)} />
-      <SizeChartStyles />
     </>
   );
 }
