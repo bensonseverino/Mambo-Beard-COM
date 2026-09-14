@@ -91,6 +91,65 @@ test("GET /api/products/:slug returns the assigned size chart", async () => {
   });
 });
 
+test("GET /api/products/:slug serves chart sizes in the catalog's notation", async () => {
+  await db
+    .prepare("UPDATE products SET size_chart = ? WHERE id = ?")
+    .bind(
+      JSON.stringify({
+        columns: ["UK Size", "Chest (in)"],
+        rows: [
+          { size: "XL", measurements: ["12-14", "44"] },
+          { size: "2XL", measurements: ["14-16", "46"] },
+          { size: "3XL", measurements: ["16-18", "48"] },
+        ],
+      }),
+      "prod-1",
+    )
+    .run();
+
+  const response = await productDetailHandler({
+    env: { DB: db },
+    params: { slug: "classic-beard-oil" },
+  });
+  const { product } = await response.json();
+
+  // This catalog spells its sizes with X's (the seeded sizes table ends at
+  // XXL), so the chart must not print "2XL" next to an XXL size selector.
+  assert.deepEqual(
+    product.sizeChart.rows.map((row) => row.size),
+    ["XL", "XXL", "XXXL"],
+  );
+  // Columns pass through untouched: they carry the unit the caption reads.
+  assert.deepEqual(product.sizeChart.columns, ["UK Size", "Chest (in)"]);
+  // Translating labels is read-time only — the stored chart keeps its own.
+  const stored = await db
+    .prepare("SELECT size_chart FROM products WHERE id = ?")
+    .bind("prod-1")
+    .first();
+  assert.match(stored.size_chart, /2XL/);
+});
+
+test("chart rows collapse labels that name the same size", async () => {
+  const { parseSizeChart } = await import("./product.js");
+  const chart = parseSizeChart(
+    JSON.stringify({
+      columns: ["Chest (in)"],
+      rows: [
+        { size: "2XL", measurements: ["46"] },
+        { size: "XXL", measurements: ["46"] },
+        { size: "One size", measurements: [""] },
+      ],
+    }),
+  );
+
+  // "2XL" and "XXL" are one size: the second row would repeat in the table
+  // and collide as a React key. Other labels are left exactly as written.
+  assert.deepEqual(
+    chart.rows.map((row) => row.size),
+    ["XXL", "One size"],
+  );
+});
+
 test("GET /api/products/:slug returns 404 for missing products", async () => {
   const response = await productDetailHandler({
     env: { DB: db },

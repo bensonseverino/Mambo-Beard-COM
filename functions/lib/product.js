@@ -27,6 +27,10 @@ const VARIATION_TYPES = ["none", "color", "size", "color_size"];
  *   {"columns":["Chest (cm)","Length (cm)"],
  *    "rows":[{"size":"S","measurements":["92","68"]}]}
  *
+ * Row sizes come back in the store's own notation — see canonicalSizeLabel,
+ * which turns the chart library's "2XL"/"3XL" into this catalog's "XXL"/
+ * "XXXL" so a shopper never reads two names for one size.
+ *
  * Defensively tolerant of rows missing `measurements` and of trailing junk —
  * garbage from the admin side degrades to "no size chart", never a broken
  * product page.
@@ -42,21 +46,45 @@ export const parseSizeChart = (raw) => {
   }
 };
 
+/**
+ * Translate a chart size label into the store's size notation.
+ *
+ * The chart library in the admin dashboard writes numbered labels ("2XL",
+ * "3XL"), while this catalog spells sizes with X's (XS, S, M, L, XL, XXL — see
+ * STANDARD_SIZE_ORDER and the seeded sizes table). Left alone, a product would
+ * show "XXL" in its size selector and "2XL" in its size chart. Anything that
+ * is not a numbered XL label ("XXL", "L", "3-4", "One size") is returned
+ * unchanged.
+ */
+export const canonicalSizeLabel = (size) => {
+  const text = String(size ?? "").trim();
+  const numbered = text.match(/^(\d+)XL$/i);
+  return numbered ? `${"X".repeat(Number(numbered[1]))}L` : text;
+};
+
 /** Keep only well-formed columns/rows; anything else degrades to null. */
 function sanitizeSizeChart(value) {
   if (!value || typeof value !== "object") return null;
   const columns = Array.isArray(value.columns)
     ? value.columns.map(String).filter((c) => c.trim())
     : [];
+  const seenSizes = new Set();
   const rows = Array.isArray(value.rows)
     ? value.rows
         .filter((row) => row && typeof row === "object" && row.size != null)
         .map((row) => ({
-          size: String(row.size),
+          size: canonicalSizeLabel(row.size),
           measurements: Array.isArray(row.measurements)
             ? row.measurements.map((m) => (m == null ? "" : String(m)))
             : columns.map(() => ""),
         }))
+        // Labels that mean the same size ("2XL" and "XXL") collapse into one
+        // row: a repeat would print twice and collide as a React key.
+        .filter((row) => {
+          if (seenSizes.has(row.size)) return false;
+          seenSizes.add(row.size);
+          return true;
+        })
     : [];
   if (!columns.length || !rows.length) return null;
   return { columns, rows };

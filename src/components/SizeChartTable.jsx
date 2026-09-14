@@ -1,8 +1,11 @@
+import { sizeChartCaption } from "../utils/sizeChartUnit";
+
 /**
  * Size chart table — renders the product's size_chart data from the backend
  * (products.size_chart JSON via the admin dashboard). Purely presentational:
- * it renders whatever sanitized rows/columns the API provides and nothing
- * else. The parent only mounts it for products that actually have data.
+ * it renders whatever sanitized rows/columns the API provides, plus the unit
+ * those columns name, and nothing else. The parent only mounts it for products
+ * that actually have data.
  *
  * Expected data shape (see parseSizeChart in functions/lib/product.js):
  *   { columns: ["Chest (cm)", "Length (cm)"],
@@ -51,7 +54,7 @@ export default function SizeChartTable({ columns, rows }) {
       </table>
 
       <p className="text-[8px] tracking-[0.2em] uppercase text-black/30 font-light">
-        Measurements may vary slightly by fabric and color
+        {sizeChartCaption(columns)}
       </p>
     </div>
   );

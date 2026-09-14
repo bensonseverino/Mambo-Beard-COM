@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { sizeChartCaption } from "../utils/sizeChartUnit";
 
 const OVERLAY_FADE_MS = 180;
 
@@ -134,7 +135,7 @@ export default function SizeChartModal({ open, onClose, sizeChart }) {
           </div>
 
           <p className="mt-4 text-[9px] tracking-[0.2em] uppercase text-black/30 font-light px-5">
-            Measurements in centimeters. Fit may vary slightly by fabric and color.
+            {sizeChartCaption(sizeChart.columns)}
           </p>
         </div>
       ) : null}
