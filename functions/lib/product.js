@@ -29,18 +29,20 @@ const VARIATION_TYPES = ["none", "color", "size", "color_size"];
  *
  * Row sizes come back in the store's own notation — see canonicalSizeLabel,
  * which turns the chart library's "2XL"/"3XL" into this catalog's "XXL"/
- * "XXXL" so a shopper never reads two names for one size.
+ * "XXXL" so a shopper never reads two names for one size. Rows for sizes the
+ * `catalog` (the sizes table) doesn't sell are then dropped, so a chart never
+ * advertises a size no product can fulfil.
  *
  * Defensively tolerant of rows missing `measurements` and of trailing junk —
  * garbage from the admin side degrades to "no size chart", never a broken
  * product page.
  */
-export const parseSizeChart = (raw) => {
+export const parseSizeChart = (raw, { catalog } = {}) => {
   if (raw == null) return null;
-  if (typeof raw === "object") return sanitizeSizeChart(raw);
+  if (typeof raw === "object") return sanitizeSizeChart(raw, catalog);
   if (typeof raw !== "string" || !raw.trim()) return null;
   try {
-    return sanitizeSizeChart(JSON.parse(raw));
+    return sanitizeSizeChart(JSON.parse(raw), catalog);
   } catch {
     return null;
   }
@@ -62,8 +64,20 @@ export const canonicalSizeLabel = (size) => {
   return numbered ? `${"X".repeat(Number(numbered[1]))}L` : text;
 };
 
+/**
+ * Lookup of the size labels a catalog holds. Accepts the sizes table's rows
+ * ({ name }) or bare labels, and compares in the canonical notation so "2XL"
+ * in a chart still matches an "XXL" catalog entry.
+ */
+const catalogLabels = (catalog) =>
+  new Set(
+    (catalog || [])
+      .map((size) => canonicalSizeLabel(size?.name ?? size).toUpperCase())
+      .filter(Boolean),
+  );
+
 /** Keep only well-formed columns/rows; anything else degrades to null. */
-function sanitizeSizeChart(value) {
+function sanitizeSizeChart(value, catalog) {
   if (!value || typeof value !== "object") return null;
   const columns = Array.isArray(value.columns)
     ? value.columns.map(String).filter((c) => c.trim())
@@ -87,7 +101,17 @@ function sanitizeSizeChart(value) {
         })
     : [];
   if (!columns.length || !rows.length) return null;
-  return { columns, rows };
+
+  // Rows for sizes the store doesn't sell are dropped so the chart never
+  // advertises a size no product can fulfil. An assigned chart is never
+  // emptied, though: if nothing matches the catalog — a chart for sizes this
+  // store doesn't stock, or a catalog that hasn't loaded — the chart is
+  // published as written rather than silently disappearing.
+  const labels = catalogLabels(catalog);
+  const sold = labels.size
+    ? rows.filter((row) => labels.has(row.size.toUpperCase()))
+    : rows;
+  return { columns, rows: sold.length ? sold : rows };
 }
 
 const STANDARD_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -129,7 +153,7 @@ export async function getProductBySlug(env, slug) {
   const hasColor = variationType === "color" || variationType === "color_size";
   const hasSize = variationType === "size" || variationType === "color_size";
 
-  const [colorsResult, imagesResult, variantsResult, inventoryResult] =
+  const [colorsResult, imagesResult, variantsResult, inventoryResult, sizeCatalogResult] =
     await Promise.all([
       db
         .prepare(
@@ -168,6 +192,9 @@ export async function getProductBySlug(env, slug) {
         )
         .bind(productResult.id)
         .all(),
+      // Every size the store sells, so a chart never advertises one it cannot
+      // fulfil. Shared by every product, so it's read per request, not per row.
+      db.prepare("SELECT name FROM sizes").all(),
     ]);
 
   let inventoryRows = inventoryResult.results || [];
@@ -237,7 +264,9 @@ export async function getProductBySlug(env, slug) {
     variants,
     // Optional size chart from the admin dashboard (products.size_chart JSON).
     // Null when the product has none — the storefront hides the control.
-    sizeChart: parseSizeChart(productResult.size_chart),
+    sizeChart: parseSizeChart(productResult.size_chart, {
+      catalog: sizeCatalogResult.results,
+    }),
     // Simple products: the single product-level stock figure.
     stock: variationType === "none" ? Number(inventoryRows[0]?.stock) || 0 : null,
   };

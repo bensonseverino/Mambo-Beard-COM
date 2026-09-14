@@ -114,10 +114,11 @@ test("GET /api/products/:slug serves chart sizes in the catalog's notation", asy
   const { product } = await response.json();
 
   // This catalog spells its sizes with X's (the seeded sizes table ends at
-  // XXL), so the chart must not print "2XL" next to an XXL size selector.
+  // XXL), so the chart must not print "2XL" next to an XXL size selector —
+  // and the "3XL" row it can't fulfil is dropped outright.
   assert.deepEqual(
     product.sizeChart.rows.map((row) => row.size),
-    ["XL", "XXL", "XXXL"],
+    ["XL", "XXL"],
   );
   // Columns pass through untouched: they carry the unit the caption reads.
   assert.deepEqual(product.sizeChart.columns, ["UK Size", "Chest (in)"]);
@@ -127,6 +128,70 @@ test("GET /api/products/:slug serves chart sizes in the catalog's notation", asy
     .bind("prod-1")
     .first();
   assert.match(stored.size_chart, /2XL/);
+});
+
+test("chart rows stop at the sizes the store sells", async () => {
+  // The seeded catalog is XS–XXL; this chart publishes XS through 3XL.
+  await db
+    .prepare("UPDATE products SET size_chart = ? WHERE id = ?")
+    .bind(
+      JSON.stringify({
+        columns: ["UK Size", "Chest (in)"],
+        rows: [
+          { size: "XS", measurements: ["4-6", "32"] },
+          { size: "S", measurements: ["6-8", "34"] },
+          { size: "M", measurements: ["8-10", "36"] },
+          { size: "L", measurements: ["10-12", "38"] },
+          { size: "XL", measurements: ["12-14", "44"] },
+          { size: "2XL", measurements: ["14-16", "46"] },
+          { size: "3XL", measurements: ["16-18", "48"] },
+        ],
+      }),
+      "prod-1",
+    )
+    .run();
+
+  const response = await productDetailHandler({
+    env: { DB: db },
+    params: { slug: "classic-beard-oil" },
+  });
+  const { product } = await response.json();
+
+  assert.deepEqual(
+    product.sizeChart.rows.map((row) => row.size),
+    ["XS", "S", "M", "L", "XL", "XXL"],
+  );
+  // Columns and the surviving measurements are untouched by the trim, and the
+  // dropped size takes its measurements with it.
+  assert.deepEqual(product.sizeChart.columns, ["UK Size", "Chest (in)"]);
+  assert.deepEqual(product.sizeChart.rows[5].measurements, ["14-16", "46"]);
+  assert.ok(!JSON.stringify(product.sizeChart).includes("48"));
+});
+
+test("a chart with no sellable size is published rather than hidden", async () => {
+  await db
+    .prepare("UPDATE products SET size_chart = ? WHERE id = ?")
+    .bind(
+      JSON.stringify({
+        columns: ["Length (in)"],
+        rows: [{ size: "3XL", measurements: ["32"] }],
+      }),
+      "prod-1",
+    )
+    .run();
+
+  const response = await productDetailHandler({
+    env: { DB: db },
+    params: { slug: "classic-beard-oil" },
+  });
+  const { product } = await response.json();
+
+  // An assigned chart is never emptied: hiding it would look like the admin's
+  // assignment was lost, so the rows are published as written instead.
+  assert.deepEqual(
+    product.sizeChart.rows.map((row) => row.size),
+    ["XXXL"],
+  );
 });
 
 test("chart rows collapse labels that name the same size", async () => {
