@@ -1,15 +1,8 @@
 // utils/deliveryFee.js
+//
+// Client re-export of the shared delivery fee table (shared/delivery-fees.js)
+// — the same module functions/api/checkout.js uses to charge orders. Keep
+// imports of DELIVERY_ZONES / getDeliveryFee pointing here; this file adds
+// nothing of its own anymore, which is the point.
 
-export const DELIVERY_ZONES = [
-  { name: "Nairobi CBD", fee: 100 },
-  { name: "Westlands", fee: 250 },
-  { name: "Kilimani", fee: 300 },
-  { name: "Thika", fee: 300 },
-  { name: "Mombasa", fee: 300 },
-  { name: "Other", fee: 400 },
-];
-
-export const getDeliveryFee = (zone) => {
-  const selected = DELIVERY_ZONES.find((z) => z.name === zone);
-  return selected ? selected.fee : 400;
-};
+export { DELIVERY_FEES, DELIVERY_ZONES, getDeliveryFee, DEFAULT_ZONE } from "../../shared/delivery-fees.js";

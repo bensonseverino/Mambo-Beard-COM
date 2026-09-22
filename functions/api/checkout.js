@@ -19,6 +19,7 @@
 // fails, nothing is written.
 
 import { apiError, ensureSchema } from "../lib/schema.js";
+import { DELIVERY_FEES } from "../../shared/delivery-fees.js";
 import {
   checkCouponUsable,
   computeCouponDiscount,
@@ -28,14 +29,6 @@ import {
 
 const VARIATION_TYPES = ["none", "color", "size", "color_size"];
 
-const DELIVERY_FEES = {
-  "Nairobi CBD": 200,
-  Westlands: 150,
-  Kilimani: 150,
-  Thika: 300,
-  Mombasa: 400,
-  Other: 500,
-};
 
 const pad4 = (value) => String(value).padStart(4, "0");
 
