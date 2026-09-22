@@ -89,7 +89,7 @@ function ConditionalOtherInput({ visible, onChange }) {
 }
 
 export default function CartDrawer({ open, toggle }) {
-  const { cart, removeFromCart, clearCart } = useCart();
+  const { cart, removeFromCart, clearCart, pushToast } = useCart();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -162,7 +162,11 @@ export default function CartDrawer({ open, toggle }) {
 
   // Re-check the coupon whenever it or the subtotal changes. A stale
   // response is discarded via a cancelled flag (last write wins); the reset
-  // path defers its write like the open-sync effect above.
+  // path defers its write like the open-sync effect above. Toast feedback
+  // fires only on VERDICT TRANSITIONS (new code, or usable ⇄ unusable) —
+  // never on the routine re-checks as the subtotal moves, which would
+  // spam a toast per cart edit.
+  const couponToastRef = useRef({ code: null, usable: null });
   useEffect(() => {
     let cancelled = false;
     const active = couponCode && open;
@@ -174,7 +178,27 @@ export default function CartDrawer({ open, toggle }) {
         }
         try {
           const preview = await lookupCoupon(couponCode, subtotal);
-          if (!cancelled) setCouponPreview(preview);
+          if (!cancelled) {
+            setCouponPreview(preview);
+            const prevVerdict = couponToastRef.current;
+            if (
+              prevVerdict.code !== couponCode ||
+              prevVerdict.usable !== preview.usable
+            ) {
+              couponToastRef.current = {
+                code: couponCode,
+                usable: preview.usable,
+              };
+              if (preview.usable) {
+                pushToast(
+                  `Coupon ${preview.code} applied — KES ${preview.discount} off`,
+                  "✓",
+                );
+              } else {
+                pushToast(`Coupon ${couponCode}: ${preview.message}`, "×");
+              }
+            }
+          }
         } catch {
           // Preview is best-effort — checkout still validates the final code.
           if (!cancelled) setCouponPreview(null);
@@ -186,7 +210,7 @@ export default function CartDrawer({ open, toggle }) {
       cancelled = true;
       clearTimeout(id);
     };
-  }, [couponCode, subtotal, open]);
+  }, [couponCode, subtotal, open, pushToast]);
 
   const discount = couponPreview?.usable ? couponPreview.discount : 0;
   const total = subtotal - discount + delivery;
@@ -202,6 +226,7 @@ export default function CartDrawer({ open, toggle }) {
   const removeCoupon = () => {
     setCouponCode("");
     setCouponPreview(null);
+    couponToastRef.current = { code: null, usable: null };
     // A removed deep-link coupon stays removed — otherwise the next drawer
     // open would silently re-apply it from storage.
     try {

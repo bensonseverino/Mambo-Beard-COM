@@ -114,6 +114,7 @@ export const CartProvider = ({ children }) => {
         cartCount,
         toasts,
         expireToast,
+        pushToast,
       }}
     >
       {children}
