@@ -39,6 +39,23 @@ export const trackAddToCart = ({ productId, name, price, quantity = 1 }) =>
     currency: CURRENCY,
   });
 
+/**
+ * Fire InitiateCheckout when the Meta Shops deep link (/checkout) has
+ * rebuilt the cart. `contents[].id` matches the feed's <g:id>, so Meta can
+ * reconcile the event with the catalog items the shopper carted.
+ */
+export const trackInitiateCheckout = ({ contents = [], numItems = 0, value }) =>
+  track("InitiateCheckout", {
+    content_ids: contents.map((item) => item.id),
+    contents,
+    content_type: "product",
+    num_items: numItems,
+    ...(Number.isFinite(Number(value)) && value !== undefined
+      ? { value: Number(value) }
+      : {}),
+    currency: CURRENCY,
+  });
+
 /** Fire Purchase once an order is successfully placed. */
 export const trackPurchase = ({ value, contents = [] }) =>
   track("Purchase", {

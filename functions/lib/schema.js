@@ -122,6 +122,23 @@ export const SCHEMA_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_variation
     ON inventory (product_id, COALESCE(color_id, ''), COALESCE(size_id, ''))`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone ON customers (phone)`,
+  // Discount codes — cross-project contract with the admin dashboard, which
+  // shares this D1 database. Codes are stored UPPERCASE; percent value is
+  // 1–100, fixed value is KES off. NULL min_subtotal / max_redemptions /
+  // expires_at means no limit. Redemption counting is owned by the
+  // storefront checkout (/api/checkout), never the admin UI.
+  `CREATE TABLE IF NOT EXISTS coupons (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    discount_type TEXT NOT NULL CHECK (discount_type IN ('percent', 'fixed')),
+    value REAL NOT NULL,
+    min_subtotal REAL,
+    max_redemptions INTEGER,
+    times_redeemed INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    expires_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
   `CREATE TABLE IF NOT EXISTS admins (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -206,6 +223,16 @@ export const ensureSchema = async (env) => {
   // Shape: {"columns":["Chest (cm)","Length (cm)"],"rows":[{"size":"S",
   //   "measurements":["92","68"]}]}
   await ensureColumn(db, "products", "size_chart", "TEXT");
+
+  // Meta Shops checkout deep links (/checkout?products=…&coupon=…). The
+  // coupon code Meta passes in rides along to /api/checkout so the discount
+  // request is preserved on the order record; cart_origin captures which
+  // surface (facebook / instagram / meta_shops) the order came from.
+  await ensureColumn(db, "orders", "coupon_code", "TEXT");
+  await ensureColumn(db, "orders", "cart_origin", "TEXT");
+  // Server-applied coupon discount in KES (integer, never negative) — the
+  // order total already reflects it. Delivery fees are not discounted.
+  await ensureColumn(db, "orders", "discount_amount", "INTEGER NOT NULL DEFAULT 0");
 
   // Unique indexes can fail on pre-existing dirty data (e.g. duplicate
   // customer phones or duplicate inventory combinations). Catch each one so

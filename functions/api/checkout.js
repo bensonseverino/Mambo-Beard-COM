@@ -19,6 +19,12 @@
 // fails, nothing is written.
 
 import { apiError, ensureSchema } from "../lib/schema.js";
+import {
+  checkCouponUsable,
+  computeCouponDiscount,
+  couponDenialMessage,
+  normalizeCouponCode,
+} from "../lib/coupon.js";
 
 const VARIATION_TYPES = ["none", "color", "size", "color_size"];
 
@@ -72,6 +78,19 @@ export async function onRequestPost(context) {
     }
 
     const { name, phone, email, zone, customLocation, cart } = body;
+
+    // Meta Shops checkout deep links (/checkout?coupon=…&cart_origin=…) and
+    // any shopper-supplied code land here. The code is normalized
+    // (trimmed + uppercased, matching how the admin stores it) and validated
+    // against the shared `coupons` table once the subtotal is known below —
+    // the discount is computed server-side and the total reflects it. The
+    // origin captures which surface (facebook / instagram / meta_shops) the
+    // order came from.
+    const couponCode = normalizeCouponCode(body.couponCode);
+    const cartOrigin =
+      typeof body.cartOrigin === "string" && body.cartOrigin.trim()
+        ? body.cartOrigin.trim().slice(0, 32)
+        : null;
 
     if (
       !name?.trim() ||
@@ -304,7 +323,29 @@ export async function onRequestPost(context) {
     }
 
     const deliveryFee = DELIVERY_FEES[zone] ?? DELIVERY_FEES.Other;
-    const total = subtotal + deliveryFee;
+
+    // Coupon validation happens after the DB subtotal is final: usability
+    // can depend on min_subtotal, and the discount clamps to the subtotal.
+    // An unknown/unusable code fails the checkout with a clear message so
+    // the order total is never quietly higher than what the shopper saw.
+    let coupon = null;
+    let discountAmount = 0;
+    if (couponCode) {
+      coupon = await env.DB.prepare(
+        `SELECT id, code, discount_type, value, min_subtotal, max_redemptions,
+                times_redeemed, active, expires_at
+         FROM coupons WHERE code = ?`,
+      )
+        .bind(couponCode)
+        .first();
+      const usable = checkCouponUsable(coupon, subtotal);
+      if (!usable.ok) {
+        throw apiError("COUPON_INVALID", couponDenialMessage(usable), 400);
+      }
+      discountAmount = computeCouponDiscount(coupon, subtotal);
+    }
+
+    const total = subtotal - discountAmount + deliveryFee;
     const orderNumber = await generateOrderNumber(env);
     const orderId = crypto.randomUUID();
 
@@ -346,8 +387,8 @@ export async function onRequestPost(context) {
             total,
           ),
       env.DB.prepare(
-        `INSERT INTO orders (id, order_number, customer_name, phone, email, location, delivery_fee, subtotal, total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        `INSERT INTO orders (id, order_number, customer_name, phone, email, location, delivery_fee, subtotal, total, status, coupon_code, cart_origin, discount_amount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
       ).bind(
         orderId,
         orderNumber,
@@ -358,7 +399,23 @@ export async function onRequestPost(context) {
         deliveryFee,
         subtotal,
         total,
+        couponCode || null,
+        cartOrigin,
+        discountAmount,
       ),
+      // Redemption counter rides in the same atomic batch as the order —
+      // an order is never written without counting its redemption, and the
+      // guarded WHERE re-checks the limit against concurrent checkouts.
+      ...(coupon
+        ? [
+            env.DB.prepare(
+              `UPDATE coupons SET times_redeemed = times_redeemed + 1
+               WHERE id = ?
+                 AND (max_redemptions IS NULL
+                      OR times_redeemed < max_redemptions)`,
+            ).bind(coupon.id),
+          ]
+        : []),
     ];
 
     for (const check of validated) {
@@ -489,6 +546,7 @@ export async function onRequestPost(context) {
         orderId,
         orderNumber,
         subtotal,
+        discount: discountAmount,
         deliveryFee,
         total,
       },

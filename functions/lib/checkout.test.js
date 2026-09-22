@@ -221,3 +221,123 @@ test("order numbers are sequential across checkouts", async () => {
   assert.equal((await first.json()).orderNumber, `MB-${day}-0001`);
   assert.equal((await second.json()).orderNumber, `MB-${day}-0002`);
 });
+
+// ─── Coupons (shared `coupons` table with the admin dashboard) ───
+
+const seedCoupon = async (overrides = {}) => {
+  const coupon = {
+    id: "coupon-1",
+    code: "MBVIP10",
+    discount_type: "percent",
+    value: 10,
+    min_subtotal: null,
+    max_redemptions: null,
+    times_redeemed: 0,
+    active: 1,
+    expires_at: null,
+    ...overrides,
+  };
+  await db
+    .prepare(
+      `INSERT INTO coupons (id, code, discount_type, value, min_subtotal,
+         max_redemptions, times_redeemed, active, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      coupon.id,
+      coupon.code,
+      coupon.discount_type,
+      coupon.value,
+      coupon.min_subtotal,
+      coupon.max_redemptions,
+      coupon.times_redeemed,
+      coupon.active,
+      coupon.expires_at,
+    )
+    .run();
+  return coupon;
+};
+
+test("a valid percent coupon discounts the total and records the redemption", async () => {
+  await seedProduct();
+  await seedCoupon(); // 10% off — subtotal 48 → discount round(4.8) = 5
+
+  const response = await checkout(validPayload({ couponCode: "mbvip10" })); // case-insensitive
+  assert.equal(response.status, 201);
+  const data = await response.json();
+  assert.equal(data.discount, 5);
+  assert.equal(data.total, 48 - 5 + 150); // subtotal - discount + delivery
+
+  const order = (await db.prepare("SELECT * FROM orders").all()).results[0];
+  assert.equal(order.coupon_code, "MBVIP10"); // stored normalized
+  assert.equal(order.discount_amount, 5);
+  assert.equal(order.total, 193);
+
+  const coupon = await db
+    .prepare("SELECT times_redeemed FROM coupons WHERE id = ?")
+    .bind("coupon-1")
+    .first();
+  assert.equal(coupon.times_redeemed, 1);
+});
+
+test("a fixed coupon larger than the subtotal clamps to the subtotal", async () => {
+  await seedProduct();
+  await seedCoupon({
+    id: "coupon-flat",
+    code: "FLAT1K",
+    discount_type: "fixed",
+    value: 1000,
+  });
+
+  const response = await checkout(validPayload({ couponCode: "FLAT1K" }));
+  assert.equal(response.status, 201);
+  const data = await response.json();
+  assert.equal(data.discount, 48); // never more than the subtotal
+  assert.equal(data.total, 150); // 0 products + delivery — never negative
+});
+
+test("an unknown coupon code fails the checkout with a clear message", async () => {
+  await seedProduct();
+  const response = await checkout(validPayload({ couponCode: "NOPE" }));
+  assert.equal(response.status, 400);
+  const data = await response.json();
+  assert.equal(data.code, "COUPON_INVALID");
+  assert.match(data.message, /not found/i);
+
+  assert.equal((await db.prepare("SELECT COUNT(*) c FROM orders").first()).c, 0);
+});
+
+test("inactive, expired, and below-minimum coupons are all rejected", async () => {
+  await seedProduct();
+  await seedCoupon({ id: "c-off", code: "PAUSED", active: 0 });
+  await seedCoupon({ id: "c-old", code: "OLDIE", expires_at: "2020-01-01T00:00:00.000Z" });
+  await seedCoupon({ id: "c-min", code: "BIGSPEND", value: 15, min_subtotal: 100 });
+
+  for (const code of ["PAUSED", "OLDIE", "BIGSPEND"]) {
+    const response = await checkout(validPayload({ couponCode: code }));
+    assert.equal(response.status, 400, `${code} should be rejected`);
+    const data = await response.json();
+    assert.equal(data.code, "COUPON_INVALID");
+  }
+  // Nothing was written for any of them.
+  assert.equal((await db.prepare("SELECT COUNT(*) c FROM orders").first()).c, 0);
+});
+
+test("max_redemptions is enforced and re-checked atomically with the order", async () => {
+  await seedProduct();
+  await seedCoupon({ max_redemptions: 1 });
+
+  const first = await checkout(validPayload({ couponCode: "MBVIP10" }));
+  assert.equal(first.status, 201);
+
+  const second = await checkout(validPayload({ couponCode: "MBVIP10" }));
+  assert.equal(second.status, 400);
+  const data = await second.json();
+  assert.match(data.message, /usage limit/i);
+
+  const coupon = await db
+    .prepare("SELECT times_redeemed FROM coupons WHERE id = ?")
+    .bind("coupon-1")
+    .first();
+  assert.equal(coupon.times_redeemed, 1); // never over-counted
+});

@@ -23,7 +23,18 @@ export const buildWhatsAppUrl = ({
   subtotal,
   delivery,
   total,
+  // Meta Shops deep-link extras (/checkout) — shown only when present.
+  couponCode,
+  cartOrigin,
+  // Server-validated discount in KES (from POST /api/checkout). When it's
+  // non-zero the summary shows the saving at a glance — the original
+  // subtotal struck through (WhatsApp ~strikethrough~) and the discounted
+  // total bolded (*bold*), both native WhatsApp markup that renders in the
+  // chat itself. A coupon without a server discount (e.g. to be honored
+  // manually) keeps the plain lines.
+  discount = 0,
 }) => {
+  const hasDiscount = Boolean(couponCode) && discount > 0;
   const lines = [
     "MAMBO BEARD ORDER",
     `Order Number: ${orderNumber}`,
@@ -33,9 +44,15 @@ export const buildWhatsAppUrl = ({
     "--------------------------------",
     ...items.map(formatItemLine),
     "--------------------------------",
-    `Subtotal: KES ${subtotal}`,
+    `Subtotal: ${hasDiscount ? `~KES ${subtotal}~` : `KES ${subtotal}`}`,
     `Delivery: KES ${delivery}`,
-    `Total: KES ${total}`,
+    ...(couponCode && discount > 0
+      ? [`Coupon ${couponCode}: -KES ${discount}`]
+      : couponCode
+        ? [`Coupon: ${couponCode}`]
+        : []),
+    hasDiscount ? `*Total: KES ${total}*` : `Total: KES ${total}`,
+    ...(cartOrigin ? [`Source: ${cartOrigin}`] : []),
   ];
 
   const message = encodeURIComponent(lines.join("\n"));

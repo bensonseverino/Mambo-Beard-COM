@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "../context/CartContext";
+import { CART_ORIGIN_STORAGE_KEY } from "../utils/fbCheckout";
 import useExitFade from "../hooks/useExitFade";
 import { DELIVERY_ZONES, getDeliveryFee } from "../utils/deliveryFee";
-import { createCheckout } from "../services/api";
+import { createCheckout, lookupCoupon } from "../services/api";
 import { buildWhatsAppUrl } from "../utils/whatsappMessage";
 import { trackPurchase } from "../utils/pixel";
 
@@ -97,12 +98,118 @@ export default function CartDrawer({ open, toggle }) {
   const [customLocation, setCustomLocation] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Meta Shops deep links (/checkout?coupon=…&cart_origin=…) stash both
+  // values in sessionStorage before opening this drawer. The coupon is
+  // state, not a constant, so the shopper can remove a deep-linked code
+  // before ordering; it's validated (and discounted) server-side.
+  const [couponCode, setCouponCode] = useState(() => {
+    try {
+      return sessionStorage.getItem("mb_coupon") || "";
+    } catch {
+      return "";
+    }
+  });
+  // Live preview from GET /api/coupons/:code — the server-applied discount
+  // for the CURRENT subtotal, so the totals reflect the coupon before the
+  // order is placed. Debounced (250ms) to avoid a request per keystroke-ish
+  // churn as cart lines change; never blocks or errors loudly.
+  const [couponPreview, setCouponPreview] = useState(null);
+  // Manual entry (no deep link): the raw input text. Applying normalizes to
+  // the stored UPPERCASE form and moves it into couponCode — from there it
+  // rides the exact same preview/validation/checkout path as deep-linked
+  // codes, so there's one behavior, not two.
+  const [couponInput, setCouponInput] = useState("");
+  const [cartOrigin, setCartOrigin] = useState(() => {
+    try {
+      return sessionStorage.getItem(CART_ORIGIN_STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+
   const delivery = getDeliveryFee(zone);
   const subtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
-  const total = subtotal + delivery;
+
+  // Re-read deep-link values whenever the drawer OPENS. On a full-page
+  // /checkout load this component mounts before FbCheckout writes
+  // sessionStorage, so the initializers above would read stale empties —
+  // the open transition (fired by the checkout page after the write) is the
+  // reliable moment. Removal stays effective until the next open. State
+  // writes are deferred out of the effect body (cascading-render rule).
+  useEffect(() => {
+    if (!open) return undefined;
+    const id = setTimeout(() => {
+      try {
+        const storedCoupon = sessionStorage.getItem("mb_coupon") || "";
+        const storedOrigin = sessionStorage.getItem(CART_ORIGIN_STORAGE_KEY) || "";
+        // Only a stored deep-link coupon takes over — a manually applied
+        // code survives reopen when there's no deep link in play.
+        if (storedCoupon) {
+          setCouponCode((prev) => (prev === storedCoupon ? prev : storedCoupon));
+        }
+        if (storedOrigin) {
+          setCartOrigin((prev) => (prev === storedOrigin ? prev : storedOrigin));
+        }
+      } catch {
+        /* storage disabled */
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  // Re-check the coupon whenever it or the subtotal changes. A stale
+  // response is discarded via a cancelled flag (last write wins); the reset
+  // path defers its write like the open-sync effect above.
+  useEffect(() => {
+    let cancelled = false;
+    const active = couponCode && open;
+    const id = setTimeout(
+      async () => {
+        if (!active) {
+          setCouponPreview(null);
+          return;
+        }
+        try {
+          const preview = await lookupCoupon(couponCode, subtotal);
+          if (!cancelled) setCouponPreview(preview);
+        } catch {
+          // Preview is best-effort — checkout still validates the final code.
+          if (!cancelled) setCouponPreview(null);
+        }
+      },
+      active ? 250 : 0,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [couponCode, subtotal, open]);
+
+  const discount = couponPreview?.usable ? couponPreview.discount : 0;
+  const total = subtotal - discount + delivery;
+
+  // Apply the typed code (uppercase, matching how the admin stores codes).
+  const applyCouponInput = () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponCode(code);
+    setCouponInput("");
+  };
+
+  const removeCoupon = () => {
+    setCouponCode("");
+    setCouponPreview(null);
+    // A removed deep-link coupon stays removed — otherwise the next drawer
+    // open would silently re-apply it from storage.
+    try {
+      sessionStorage.removeItem("mb_coupon");
+    } catch {
+      /* storage disabled */
+    }
+  };
 
   const handleCheckout = async () => {
     if (loading) return;
@@ -141,6 +248,8 @@ export default function CartDrawer({ open, toggle }) {
       email,
       zone,
       customLocation: finalLocation,
+      ...(couponCode ? { couponCode } : {}),
+      ...(cartOrigin ? { cartOrigin } : {}),
       cart: cart.map((item) => {
         const type = item.variationType || "color_size";
         const line = {
@@ -178,6 +287,9 @@ export default function CartDrawer({ open, toggle }) {
         subtotal: result.subtotal ?? subtotal,
         delivery: result.deliveryFee ?? delivery,
         total: result.total ?? total,
+        discount: result.discount ?? 0,
+        ...(couponCode ? { couponCode } : {}),
+        ...(cartOrigin ? { cartOrigin } : {}),
       });
 
       if (popup && !popup.closed) {
@@ -280,10 +392,64 @@ export default function CartDrawer({ open, toggle }) {
         />
       </div>
 
+      {/* COUPON — manual entry when none applied */}
+      {!couponCode && (
+        <div className="mb-fade-in mt-4 flex gap-2">
+          <input
+            value={couponInput}
+            onChange={(e) => setCouponInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyCouponInput();
+            }
+            }}
+            placeholder="Coupon code"
+            aria-label="Coupon code"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full border p-2 text-sm uppercase placeholder:normal-case placeholder:text-black/40"
+          />
+          <button
+            type="button"
+            onClick={applyCouponInput}
+            disabled={!couponInput.trim()}
+            className="border border-black px-4 py-2 text-[10px] tracking-[0.28em] uppercase font-light disabled:opacity-40 hover:bg-black hover:text-white transition-colors"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+
       {/* TOTALS */}
       <div className="mt-4 text-sm">
         <p>Subtotal: KES {subtotal}</p>
         <p>Delivery: KES {delivery}</p>
+        {couponCode && (
+          <div className="mb-fade-in text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className={couponPreview?.usable ? "text-black/70" : "text-black/40"}>
+                Coupon: {couponCode}
+                {couponPreview && !couponPreview.usable && ` — ${couponPreview.message}`}
+              </span>
+            <button
+              type="button"
+              onClick={removeCoupon}
+              aria-label={`Remove coupon ${couponCode}`}
+              className="text-black/40 hover:text-black/80 transition-colors"
+            >
+              ×
+            </button>
+            </div>
+            {couponPreview?.usable && discount > 0 && (
+              <div className="flex justify-between text-black/70 mt-1 mb-fade-text" key={`disc-${discount}`}>
+                <span>Discount</span>
+                <span>−KES {discount}</span>
+              </div>
+            )}
+          </div>
+        )}
         <p className="font-bold">Total: KES {total}</p>
       </div>
 

@@ -10,6 +10,7 @@ import CartToasts from "./components/CartToasts";
 import VipPopup from "./components/VipPopup";
 import SEO from "./components/SEO";
 import { CartProvider, useCart } from "./context/CartContext";
+import { OPEN_CART_EVENT } from "./utils/fbCheckout";
 import {
   DEFAULT_TITLE,
   DEFAULT_DESCRIPTION,
@@ -24,6 +25,7 @@ import { trackPageView } from "./utils/pixel";
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const YeezyProduct = lazy(() => import("./pages/YeezyProduct"));
+const FbCheckout = lazy(() => import("./pages/FbCheckout"));
 
 // Fires a Meta Pixel PageView for the initial view and every client-side
 // route change (the static PageView in index.html was removed to avoid
@@ -94,6 +96,15 @@ function App() {
     setRawZoomLevel((z) => (z >= maxZoom ? 0 : z + 1));
   }, [maxZoom]);
 
+  // The /checkout deep link (Facebook & Instagram Shops) can't reach the
+  // cart state through props — it lives two layers below — so it announces
+  // itself with a window event and this listener opens the drawer.
+  useEffect(() => {
+    const openCart = () => setCartOpen(true);
+    window.addEventListener(OPEN_CART_EVENT, openCart);
+    return () => window.removeEventListener(OPEN_CART_EVENT, openCart);
+  }, []);
+
   return (
     <HelmetProvider>
       <CartProvider>
@@ -120,6 +131,7 @@ function App() {
                 />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/privacy" element={<Privacy />} />
+                <Route path="/checkout" element={<FbCheckout />} />
               </Routes>
             </RouteShell>
           </Suspense>

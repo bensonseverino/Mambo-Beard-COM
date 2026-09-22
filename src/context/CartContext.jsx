@@ -92,11 +92,29 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => setCart([]);
 
+  /**
+   * Replace the whole cart in one commit — the Facebook Shop checkout deep
+   * link (/checkout) must clear any existing items before adding Meta's
+   * (per Meta's checkout-URL spec: clear the cart on each call so buyers
+   * never see stale products from a previous session).
+   */
+  const replaceCart = useCallback((items) => setCart(items), []);
+
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartCount, toasts, expireToast }}
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        replaceCart,
+        cartCount,
+        toasts,
+        expireToast,
+      }}
     >
       {children}
     </CartContext.Provider>

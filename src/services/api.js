@@ -120,6 +120,19 @@ export const getInventory = async (productId) => {
 // CHECKOUT
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Preview a coupon's usability and discount for a given subtotal — the same
+ * rules /api/checkout enforces. Read-only; used by the cart drawer totals.
+ */
+export const lookupCoupon = async (code, subtotal) => {
+  const response = await fetch(
+    `${API_BASE}/api/coupons/${encodeURIComponent(
+      String(code || "").trim().toUpperCase(),
+    )}?subtotal=${encodeURIComponent(String(Math.max(0, Math.round(subtotal))))}`,
+  );
+  return handleJson(response);
+};
+
 export const createCheckout = async (payload) => {
   const response = await fetch(`${API_BASE}/api/checkout`, {
     method: "POST",

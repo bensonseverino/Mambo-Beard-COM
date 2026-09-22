@@ -1,0 +1,15 @@
+# Cloudflare Pages configuration — local development alignment.
+#
+# The storefront deploys via the Cloudflare Pages Git integration, which
+# builds with `npm run build` and reads bindings from the dashboard — this
+# file does not affect production. Its job is to make local tooling share
+# one identity for the D1 binding so `wrangler pages dev` and
+# `wrangler d1 execute --local` hit the same local database file.
+name = "mambo-beard-storefront"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mambo-beard-db"
+database_id = "mambo-beard-db-local"
